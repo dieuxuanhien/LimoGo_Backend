@@ -4,6 +4,7 @@ const { signupSchema, loginSchema, acceptCodeSchema, acceptResetPasswordSchema }
 const hash = require('../utils/hashing');
 const User = require('../models/user');
 const transport = require('../middlewares/sendMail');
+const user = require('../models/user');
 exports.signup = async (req, res) => {
     try {
         const {  email, password, phoneNumber } = req.body;
@@ -52,7 +53,7 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
         const token = jwt.sign(
-            { userId: user._id,
+            { _id: user._id,
                 email: user.email,
                 role: user.userRole,
                 phoneNumber: user.phoneNumber,
@@ -73,6 +74,7 @@ exports.login = async (req, res) => {
             success: true,
             message: "Login successful",
             data: {
+              verified: user.verified,
               token,
             
             },
@@ -270,5 +272,27 @@ exports.verifyResetPasswordCode = async (req, res) => {
     catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+}
+
+
+exports.verifiedStatus = async (req,res) =>
+{
+    try
+    {
+        let user = await     User.findById(req.user._id).select('+verified');
+        
+        if (!user)
+        {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, verified: user.verified });
+    
+
+    }
+    catch (error)
+    {
+       console.error(error);
+       res.status(500).json({success: false, message:'Internal server error'});
     }
 }

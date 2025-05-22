@@ -17,7 +17,7 @@ exports.loggedin = (req, res, next) => {
         // Check for Bearer format
         if (typeof token === 'string' && token.startsWith('Bearer ')) {
             const userToken = token.split(' ')[1];
-            const jwtVerified = jwt.verify(userToken, process.env.JWT_SECRET); // FIXED HERE
+            const jwtVerified = jwt.verify(userToken, process.env.JWT_SECRET); 
             if (jwtVerified) {
                 req.user = jwtVerified;
                 next();

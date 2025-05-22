@@ -19,6 +19,20 @@ const userSchema = new mongoose.Schema({
         required: [true,"Phone number is required"],
         unique: true,
     },
+    name: {
+        type: String,
+    },
+    dateOfBirth: {
+        type: Date,
+
+    },
+    gender: {
+        type: String,
+        enum:
+        ['Male', 'Female', 'Khác'],
+    },
+
+
     userRole: {
         type: String,
         enum: ['admin', 'user'],

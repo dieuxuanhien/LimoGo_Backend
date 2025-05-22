@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const app = express();
 
 const authRouter = require('./routers/authRouter');
+const userRouter = require('./routers/userRouter');
 dotenv.config();
 
 app.use(cors());
@@ -25,8 +26,7 @@ mongoose.connect(process.env.MONGO_URI, {
 });
 
 app.use('/auth', authRouter);
-
-
+app.use('/user', userRouter);
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
 });
