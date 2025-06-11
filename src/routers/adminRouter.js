@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
 //user management routes
 router.get('/users', userManagementController.getAllUsers);
 router.get('/users/:id', userManagementController.getUserById);
-router.get('/users/getByEmail', userManagementController.getUserByEmail);
+router.get('/users/:email', userManagementController.getUserByEmail);
 router.post('/users', userManagementController.createUser);
 router.put('/users/:id', userManagementController.updateUser);
 router.delete('/users/:id', userManagementController.deleteUser);

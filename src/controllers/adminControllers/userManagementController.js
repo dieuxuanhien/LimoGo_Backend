@@ -27,7 +27,7 @@ exports.getUserById = async (req, res) => {
 
 // Get user by email
 exports.getUserByEmail = async (req, res) => {
-    const email = req.query.email;
+    const email = req.params.email;
     if (!email) {
         return res.status(400).json({ success: false, message: 'Email query parameter is required' });
     }
@@ -44,7 +44,7 @@ exports.getUserByEmail = async (req, res) => {
 
 // Create user
 exports.createUser = async (req, res) => {
-    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole } = req.body;
+    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole, verified } = req.body;
     if (!email || !password || !phoneNumber) {
         return res.status(400).json({ success: false, message: 'Email, password, and phone number are required' });
     }
@@ -58,6 +58,7 @@ exports.createUser = async (req, res) => {
             dateOfBirth,
             gender,
             userRole: userRole || 'user',
+            verified: verified || false,
         });
         await newUser.save();
         res.status(201).json({ success: true, data: newUser });
@@ -69,12 +70,13 @@ exports.createUser = async (req, res) => {
 // Update user
 exports.updateUser = async (req, res) => {
     const userId = req.params.id;
-    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole } = req.body;
+    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole , verified } = req.body;
     if (!email || !password || !phoneNumber) {
         return res.status(400).json({ success: false, message: 'Email, password, and phone number are required' });
     }
     try {
         const hashedPassword = await hashPassword(password);
+        
         const user = await User.findByIdAndUpdate(
             userId,
             {
@@ -84,7 +86,8 @@ exports.updateUser = async (req, res) => {
                 phoneNumber,
                 dateOfBirth,
                 gender,
-                userRole: userRole || 'user',
+                userRole,
+                verified,
             },
             { new: true, runValidators: true }
         ).select('+password');
