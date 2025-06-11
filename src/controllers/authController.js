@@ -41,7 +41,7 @@ exports.login = async (req, res) => {
         const {error, value} = loginSchema.validate({email, password});
         if (error) {
             console.error(error);
-            return res.status(400).json({ success:0, message: error.details[0].message });
+            return res.status(400).json({ success:false, message: error.details[0].message });
 
         }
         const user = await User.findOne({ email }).select('+password');
@@ -149,7 +149,7 @@ exports.verifyVerificationCode = async (req, res) => {
         const {error, value} = acceptCodeSchema.validate({email, providedCode});
         if (error) {
             console.error(error);
-            return res.status(400).json({ success:0, message: error.details[0].message });
+            return res.status(400).json({ success:false, message: error.details[0].message });
 
         }
         codeValue = providedCode.toString();
@@ -294,5 +294,19 @@ exports.verifiedStatus = async (req,res) =>
     {
        console.error(error);
        res.status(500).json({success: false, message:'Internal server error'});
+    }
+}
+
+
+exports.deleteAccount = async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, message: 'Account deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 }

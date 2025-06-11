@@ -6,7 +6,7 @@ const userController = require('../controllers/userController');
 
 
 router.get('/me', loggedin, userController.getMe);
-router.put('/updateMe', loggedin, userController.updateMe);
-
+router.patch('/updateMe', loggedin, userController.updateMe);
+router.delete('/deleteMe', loggedin, userController.deleteMe); 
 
 module.exports = router;

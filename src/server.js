@@ -8,6 +8,8 @@ const app = express();
 
 const authRouter = require('./routers/authRouter');
 const userRouter = require('./routers/userRouter');
+const adminRouter = require('./routers/adminRouter');
+const { adminOnly, loggedin } = require('./middlewares/identification');
 dotenv.config();
 
 app.use(cors());
@@ -25,12 +27,16 @@ mongoose.connect(process.env.MONGO_URI, {
   console.error('MongoDB connection error:', err);
 });
 
+
+app.use('/admin', adminRouter);
 app.use('/auth', authRouter);
 app.use('/user', userRouter);
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
 });
 
-app.listen(process.env.PORT, () => {
+app.listen(process.env.PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${process.env.PORT}`);
 });
+
+

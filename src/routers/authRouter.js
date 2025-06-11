@@ -19,6 +19,8 @@ router.patch('/verify-verification-code',   loggedin,  authController.verifyVeri
 router.patch('/send-reset-password-code', authController.sendResetPasswordCode);
 router.patch('/verify-reset-password-code', authController.verifyResetPasswordCode);
 
+
+
 router.get('/verifiedStatus', loggedin, authController.verifiedStatus )
 router.get('/admintest', loggedin , adminOnly, (req, res) => {
     res.json({ success: true, message: 'Admin test successful' });
