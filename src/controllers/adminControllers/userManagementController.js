@@ -4,7 +4,17 @@ const { hashPassword } = require('../../utils/hashing');
 // Get all users
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.find({}).select('+password');
+        let filter = {};
+        if (req.query.email) filter.email = req.query.email;
+        if (req.query.phoneNumber) filter.phoneNumber = req.query.phoneNumber;
+        if (req.query.userRole) filter.userRole = req.query.userRole;
+        if (req.query.verified) filter.verified = req.query.verified;
+        if (req.query.name) filter.name = req.query.name;
+        if (req.query.dateOfBirth) filter.dateOfBirth = req.query.dateOfBirth;
+        if (req.query.gender) filter.gender = req.query.gender;
+        console.log('Filter:', filter);
+        const users = await User.find(filter).select('+password');
+        console.log('Users found:', users.length); // Debug log
         res.status(200).json({ success: true, data: users });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -25,22 +35,7 @@ exports.getUserById = async (req, res) => {
     }
 };
 
-// Get user by email
-exports.getUserByEmail = async (req, res) => {
-    const email = req.params.email;
-    if (!email) {
-        return res.status(400).json({ success: false, message: 'Email query parameter is required' });
-    }
-    try {
-        const user = await User.findOne({ email }).select('+password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.status(200).json({ success: true, data: user });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+
 
 // Create user
 exports.createUser = async (req, res) => {
