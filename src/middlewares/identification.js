@@ -3,7 +3,7 @@ const user = require('../models/user');
 
 exports.loggedin = (req, res, next) => {
     let token;
-    if (req.headers.client === 'not-browser') {
+    if (req.headers.authorization) {
         token = req.headers.authorization;
     } else {
         token = req.cookies['Authorization'];
