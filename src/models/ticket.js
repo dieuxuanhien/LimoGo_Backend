@@ -1,58 +1,57 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
-const { v4: uuidv4 } = require("uuid");
+  const { Schema, model } = require("mongoose");
+  const { v4: uuidv4 } = require("uuid");
 
 
 
-const ticketSchema = new mongoose.Schema(
-    {
-        trip_id: { type: Schema.Types.ObjectId, ref: "Trip", required: true },
-        user_id: { type: Schema.Types.ObjectId, ref: "User" },
-        seatNumber: { type: String, required: true },
-        bookingDate: { type: Date },
+  const ticketSchema = new Schema(
+      {
+          trip: { type: Schema.Types.ObjectId, ref: "Trip", required: true },
+          user: { type: Schema.Types.ObjectId, ref: "User" },
+          seatNumber: { type: String, required: true },
+          bookingDate: { type: Date },
 
-        price: { type: Number, required: true },
+          price: { type: Number, required: true },
 
-        lockExpires: { type: Date },
-        status: {
-            type: String,
-            enum: ["available", "locked", "booked"],
-            default: "available",
-        },
+          lockExpires: { type: Date },
+          status: {
+              type: String,
+              enum: ["available", "locked", "booked"],
+              default: "available",
+          },
 
-        paymentStatus: {
-            type: String,
-            enum: ["pending", "completed"],
-            default: "pending",
-        },
+          paymentStatus: {
+              type: String,
+              enum: ["pending", "completed"],
+              default: "pending",
+          },
 
-        accessId: {
-            type: String,
-            required: true,
-            unique: true,
-            default: () => uuidv4().slice(0, 6),
-        },
-    },
-    { timestamps: true }
-);
+          accessId: {
+              type: String,
+              required: true,
+              unique: true,
+              default: () => uuidv4().slice(0, 6),
+          },
+      },
+      { timestamps: true }
+  );
 
-ticketSchema.index({ trip: 1, seatNumber: 1 }, { unique: true });
+  ticketSchema.index({ trip: 1, seatNumber: 1 }, { unique: true });
 
-ticketSchema.pre("validate", async function (next) {
-  if (this.isNew && this.status === "booked") {
-    const Ticket = mongoose.model("Ticket");
-    const exists = await Ticket.findOne({
-      trip: this.trip,
-      seatNumber: this.seatNumber,
-      status: "booked",
-    });
-    if (exists)
-      return next(
-        new Error(`Seat ${this.seatNumber} is already booked for this trip.`)
-      );
-    this.bookingDate = new Date();
-  }
-  next();
-});
+  ticketSchema.pre("validate", async function (next) {
+    if (this.isNew && this.status === "booked") {
+      const Ticket = this.constructor;
+      const exists = await Ticket.findOne({
+        trip: this.trip,
+        seatNumber: this.seatNumber,
+        status: "booked",
+      });
+      if (exists)
+        return next(
+          new Error(`Seat ${this.seatNumber} is already booked for this trip.`)
+        );
+      this.bookingDate = new Date();
+    }
+    next();
+  });
 
-module.exports = mongoose.model("Ticket", ticketSchema);
+  module.exports = model("Ticket", ticketSchema);

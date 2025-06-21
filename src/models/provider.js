@@ -1,6 +1,5 @@
 const { required } = require('joi');
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+const { Schema, model } = require('mongoose');
 
 const providerSchema = new Schema({
     name: { type: String, required: true }, // Name of the provider
@@ -13,5 +12,5 @@ const providerSchema = new Schema({
 
 }, { timestamps: true });
 
-module.exports = mongoose.model('Provider', providerSchema);
+module.exports = model('Provider', providerSchema);
 
