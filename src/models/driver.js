@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+const { Schema, model } = require('mongoose');
 
 const driverSchema = new Schema({
   name: { type: String, required: true }, // driver's name
@@ -10,4 +9,4 @@ const driverSchema = new Schema({
   status: { type: String, enum: ['assigned', 'available'], default: 'available' }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Driver', driverSchema);
+module.exports = model('Driver', driverSchema);

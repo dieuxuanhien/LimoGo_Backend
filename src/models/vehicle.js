@@ -1,9 +1,8 @@
-const mongoose = require('mongoose');
+const { Schema, model } = require('mongoose');
 
-
-const vehicleSchema = new mongoose.Schema({
+const vehicleSchema = new Schema({
   type: { type: String, required: true },
-  currentStation: { type: mongoose.Schema.Types.ObjectId, ref: 'Station', required: true },
+  currentStation: { type: Schema.Types.ObjectId, ref: 'Station', required: true },
   licensePlate: { type: String, required: true, unique: true },
   status: { type: String, enum: ['available', 'in-use', 'maintenance'], default: 'available' },
   capacity: { type: Number, required: true },
@@ -12,4 +11,4 @@ const vehicleSchema = new mongoose.Schema({
   image: { type: String }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Vehicle', vehicleSchema);
+module.exports = model('Vehicle', vehicleSchema);
