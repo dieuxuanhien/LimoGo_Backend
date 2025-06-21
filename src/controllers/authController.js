@@ -4,7 +4,7 @@ const { signupSchema, loginSchema, acceptCodeSchema, acceptResetPasswordSchema }
 const hash = require('../utils/hashing');
 const User = require('../models/user');
 const transport = require('../middlewares/sendMail');
-const user = require('../models/user');
+
 exports.signup = async (req, res) => {
     try {
         const {  email, password, phoneNumber } = req.body;

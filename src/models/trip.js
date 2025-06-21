@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 const driver = require('./driver');
-
+const Schema = mongoose.Schema;
 
 const tripSchema = new Schema({
   route: { type: Schema.Types.ObjectId, ref: 'Route', required: true },
   vehicle: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: true },
   driver: { type: Schema.Types.ObjectId, ref: 'Driver', required: true },
+  provider: {type : Schema.Types.ObjectId, ref: 'Provider', required: false} ,
   status: { type: String, enum: ['scheduled', 'in-progress', 'completed', 'cancelled'], default: 'scheduled' },
   departureTime: { type: Date, required: true },
   arrivalTime: { type: Date, required: true },
