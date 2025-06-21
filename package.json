@@ -17,7 +17,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --watch --trace-warnings --env-file=.env src/server.js",
-    "production": "node src/server.js"
+    "production": "node src/server.js",
+    "seed": "node --env-file=.env src/seeder.js"
+
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
