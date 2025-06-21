@@ -1,7 +1,6 @@
+const { Schema, model } = require('mongoose');
 
-const mongoose = require('mongoose');
-
-const issueReportSchema = new mongoose.Schema({
+const issueReportSchema = new Schema({
   user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, required: true },
   description: { type: String, required: true },
@@ -14,4 +13,4 @@ issueReportSchema.pre('save', function(next) {
 });
 
 
-module.exports = mongoose.model('IssueReport', issueReportSchema);
+module.exports = model('IssueReport', issueReportSchema);
