@@ -1,8 +1,7 @@
-const { Schema, model } = require('mongoose');
-
-const stationSchema = new Schema({
+const mongoose = require('mongoose');
+const stationSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
-  city: { type: String, required: true, index: true },
+  city: { type: String, required: true },
   country: { type: String, default: 'VietNam' },
   coordinates: {
     lat: { type: Number },
@@ -10,4 +9,4 @@ const stationSchema = new Schema({
   }
 }, { timestamps: true });
 
-module.exports = model('Station', stationSchema);
+module.exports = mongoose.model('Station', stationSchema);

@@ -1,4 +1,5 @@
-const { Schema, model } = require('mongoose');
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
 const providerSchema = new Schema({
     name: { type: String, required: true }, // Name of the provider
@@ -12,4 +13,4 @@ const providerSchema = new Schema({
     
 }, { timestamps: true });
 
-module.exports = model('Provider', providerSchema);
+module.exports = mongoose.model('Provider', providerSchema);

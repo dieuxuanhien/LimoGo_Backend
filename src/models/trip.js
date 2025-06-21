@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const { Schema, model } = mongoose;
 const driver = require('./driver');
 
 
@@ -13,7 +12,6 @@ const tripSchema = new Schema({
   price: { type: Number, required: true }
 }, { timestamps: true });
 
-
 tripSchema.post('save', async function(doc, next) {
   const Ticket = mongoose.model('Ticket');
   const Vehicle = mongoose.model('Vehicle');
@@ -26,13 +24,8 @@ tripSchema.post('save', async function(doc, next) {
     tickets.push({ trip: doc._id, seatNumber: i.toString(), price: doc.price });
   }
 
-  await Ticket.insertMany(tickets, { ordered: false }).catch((err) => {
-    console.error("Error inserting tickets, but continuing...", err.message);
-  });
+  await Ticket.insertMany(tickets, { ordered: false }).catch(() => {});
   next();
 });
 
-
-tripSchema.index({ route: 1, departureTime: 1 });
-
-module.exports = model('Trip', tripSchema);
+module.exports = mongoose.model('Trip', tripSchema);

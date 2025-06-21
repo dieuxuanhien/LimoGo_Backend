@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const app = express();
@@ -9,9 +10,7 @@ const authRouter = require('./routers/authRouter');
 const userRouter = require('./routers/userRouter');
 const adminRouter = require('./routers/adminRouter');
 const { adminOnly, loggedin } = require('./middlewares/identification');
-
-const tripRouter = require('./routers/tripRouter');
-
+dotenv.config();
 
 app.use(cors());
 app.use(helmet());
@@ -32,8 +31,6 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/admin', adminRouter);
 app.use('/auth', authRouter);
 app.use('/user', userRouter);
-app.use('/api/trips', tripRouter);
-
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
 });

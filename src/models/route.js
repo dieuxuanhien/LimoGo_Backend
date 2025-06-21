@@ -1,12 +1,10 @@
-const { Schema, model } = require('mongoose');
+const mongoose = require('mongoose');
 
-const routeSchema = new Schema({
-  originStation: { type: Schema.Types.ObjectId, ref: 'Station', required: true },
-  destinationStation: { type: Schema.Types.ObjectId, ref: 'Station', required: true },
+const routeSchema = new mongoose.Schema({
+  origin_station_id: { type: Schema.Types.ObjectId, ref: 'Station', required: true },
+  destination_station_id: { type: Schema.Types.ObjectId, ref: 'Station', required: true },
   distanceKm: { type: Number },
   estimatedDurationMin: { type: Number }
 }, { timestamps: true });
 
-routeSchema.index({ originStation: 1, destinationStation: 1 });
-
-module.exports = model('Route', routeSchema);
+module.exports = mongoose.model('Route', routeSchema);
