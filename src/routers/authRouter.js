@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const {adminOnly, loggedin} = require('../middlewares/identification');
+const {ensureRole, loggedin} = require('../middlewares/identification');
 
-
+const userController = require('../controllers/userController');
 
 const authController = require('../controllers/authController');
 
@@ -20,9 +20,8 @@ router.patch('/send-reset-password-code', authController.sendResetPasswordCode);
 router.patch('/verify-reset-password-code', authController.verifyResetPasswordCode);
 
 
-
 router.get('/verifiedStatus', loggedin, authController.verifiedStatus )
-router.get('/admintest', loggedin , adminOnly, (req, res) => {
+router.get('/admintest', loggedin , ensureRole('admin'), (req, res) => {
     res.json({ success: true, message: 'Admin test successful' });
 });
 module.exports = router;

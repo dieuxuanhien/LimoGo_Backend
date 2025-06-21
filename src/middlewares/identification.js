@@ -35,15 +35,18 @@ exports.loggedin = (req, res, next) => {
 
 
 
-exports.adminOnly = (req, res, next) => {
+exports.ensureRole = (roles) => (req, res, next) => {
 
-    if (req.user && req.user.role === 'admin') {
+    if (req.user && roles.includes(req.user.role)) {
 
         next();
     } else {
-        res.status(403).json({ 
-			success: false, message: 'Admin access only' ,
-			userrole: req.user.role,
-		});
+        res.status(403).json({
+            success: false, message: `${roles.join(', ')} access only`,
+            userrole: req.user.role,
+        });
     }
 };
+
+
+
