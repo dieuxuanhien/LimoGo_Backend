@@ -1,17 +1,18 @@
 const mongoose = require('mongoose');
+const { Schema, model } = mongoose;
 const driver = require('./driver');
-const Schema = mongoose.Schema;
+
 
 const tripSchema = new Schema({
   route: { type: Schema.Types.ObjectId, ref: 'Route', required: true },
   vehicle: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: true },
   driver: { type: Schema.Types.ObjectId, ref: 'Driver', required: true },
-  provider: {type : Schema.Types.ObjectId, ref: 'Provider', required: false} ,
   status: { type: String, enum: ['scheduled', 'in-progress', 'completed', 'cancelled'], default: 'scheduled' },
   departureTime: { type: Date, required: true },
   arrivalTime: { type: Date, required: true },
   price: { type: Number, required: true }
 }, { timestamps: true });
+
 
 tripSchema.post('save', async function(doc, next) {
   const Ticket = mongoose.model('Ticket');
@@ -25,8 +26,13 @@ tripSchema.post('save', async function(doc, next) {
     tickets.push({ trip: doc._id, seatNumber: i.toString(), price: doc.price });
   }
 
-  await Ticket.insertMany(tickets, { ordered: false }).catch(() => {});
+  await Ticket.insertMany(tickets, { ordered: false }).catch((err) => {
+    console.error("Error inserting tickets, but continuing...", err.message);
+  });
   next();
 });
 
-module.exports = mongoose.model('Trip', tripSchema);
+
+tripSchema.index({ route: 1, departureTime: 1 });
+
+module.exports = model('Trip', tripSchema);
