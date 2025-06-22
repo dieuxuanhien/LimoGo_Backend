@@ -24,8 +24,6 @@ exports.getMyBookedTickets = async (req, res) => {
     }
 };
 
-const Ticket = require('../models/ticket');
-
 exports.getMyTickets = async (req, res) => {
   try {
     const tickets = await Ticket.find({ user: req.user._id })
