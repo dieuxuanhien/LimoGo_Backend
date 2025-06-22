@@ -176,6 +176,36 @@ const deleteTrip = async (req, res) => {
 
 
 // === HÀM DÀNH CHO PUBLIC ===
+
+const getFeaturedTrips = async (req, res) => {
+    try {
+        const now = new Date();
+
+        const trips = await Trip.find({
+            status: 'scheduled',
+            departureTime: { $gt: now }
+        })
+        .sort({ departureTime: 1 }) // Sắp xếp theo chuyến đi sớm nhất
+        .limit(10) // Chỉ lấy 10 chuyến đi
+        .populate({
+            path: 'route',
+            select: 'originStation destinationStation', // Chọn lọc trường
+            populate: [
+                { path: 'originStation', select: 'name city' },
+                { path: 'destinationStation', select: 'name city' }
+            ]
+        })
+        .populate('provider', 'name') // Chỉ lấy tên nhà xe
+        .populate('vehicle', 'type') // Chỉ lấy loại xe
+        .lean(); // Dùng lean() để tối ưu
+
+        res.status(200).json({ success: true, data: trips });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+
 const searchTripsByCity = async (req, res) => {
     try {
     // --- Bước 1: Lấy dữ liệu đã được "làm sạch" và kiểm tra bởi validator ---
@@ -298,5 +328,6 @@ module.exports = {
     updateTrip, 
     deleteTrip,
     searchTripsByCity,
-    getTicketsForTrip
+    getTicketsForTrip,
+    getFeaturedTrips
 };
