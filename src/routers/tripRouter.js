@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const tripController = require('../controllers/tripController');
 const { loggedin, ensureRole } = require('../middlewares/identification');
-const { getProviderInfo } = require('../middlewares/roleMiddleware');
+const { isProvider } = require('../middlewares/roleMiddleware');
 const { handleValidationErrors } = require('../middlewares/validationHandler');
 
 const {
@@ -30,7 +30,7 @@ router.get(
     '/', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
-    getProviderInfo,
+    isProvider,
     validateGetAllTrips,      // Áp dụng quy tắc phân trang
     handleValidationErrors,
     tripController.getAllTrips
@@ -41,7 +41,7 @@ router.get(
     '/:id', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
-    getProviderInfo,
+    isProvider,
     validateIdInParams,       // Áp dụng quy tắc kiểm tra ID
     handleValidationErrors,
     tripController.getTripById
@@ -52,7 +52,7 @@ router.post(
     '/', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
-    getProviderInfo,
+    isProvider,
     validateCreateTrip,       // Áp dụng quy tắc tạo trip
     handleValidationErrors,
     tripController.createTrip
@@ -63,7 +63,7 @@ router.patch(
     '/:id', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
-    getProviderInfo,
+    isProvider,
     validateUpdateTrip,       // Áp dụng quy tắc cập nhật trip
     handleValidationErrors,
     tripController.updateTrip
@@ -74,7 +74,7 @@ router.delete(
     '/:id', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
-    getProviderInfo,
+    isProvider,
     validateIdInParams,       // Áp dụng quy tắc kiểm tra ID
     handleValidationErrors,
     tripController.deleteTrip
