@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 
 // Quy tắc cho việc khóa ghế
 exports.validateLockSeat = [
@@ -16,4 +16,10 @@ exports.validateConfirmBooking = [
     // Dấu '*' là một wildcard, kiểm tra cho mỗi phần tử bên trong mảng ticketIds
     body('ticketIds.*')
         .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.')
+];
+
+// Quy tắc cho API duyệt đơn hàng
+exports.validateApproveBooking = [
+    param('bookingId')
+        .isMongoId().withMessage('Booking ID trong URL không hợp lệ.')
 ];
