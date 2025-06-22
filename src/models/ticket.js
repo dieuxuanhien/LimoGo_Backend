@@ -12,9 +12,9 @@ const ticketSchema = new Schema(
         lockExpires: { type: Date },
         status: {
             type: String,
-            enum: ["available", "locked", "booked"],
+            enum: ["available", "locked", "pending_approval", "booked"],
             default: "available",
-        },
+        },  
         accessId: {
             type: String,
             required: true,
