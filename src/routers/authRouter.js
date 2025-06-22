@@ -21,7 +21,7 @@ router.patch('/verify-reset-password-code', authController.verifyResetPasswordCo
 
 
 router.get('/verifiedStatus', loggedin, authController.verifiedStatus )
-router.get('/admintest', loggedin , ensureRole('admin'), (req, res) => {
+router.get('/admintest', loggedin, ensureRole(['admin']), (req, res) => {
     res.json({ success: true, message: 'Admin test successful' });
 });
 module.exports = router;

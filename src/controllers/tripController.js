@@ -47,6 +47,13 @@ const getAllTrips = async (req, res) => {
             filter.provider = req.provider._id;
         }
 
+        // --- THÊM DÒNG DEBUG NÀY ---
+        console.log('--- DEBUG: getAllTrips Controller ---');
+        console.log('Filter object being used:', filter);
+        console.log('-----------------------------------');
+        // -----------------------------------
+
+
         // Logic Phân trang (Pagination)
         const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
         const limit = parseInt(req.query.limit) || 10; // Số lượng bản ghi mỗi trang, mặc định là 10
@@ -122,7 +129,7 @@ const updateTrip = async (req, res) => {
         // Loại bỏ các trường undefined để không ghi đè giá trị cũ
         Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
-        const updateTrip = await Trip.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true })
+        const updatedTrip = await Trip.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true })
             .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
             .populate('vehicle')
             .populate('driver')
@@ -131,11 +138,11 @@ const updateTrip = async (req, res) => {
         // Logic cập nhật bến đỗ cho tài xế và xe
         if (req.body.status === 'completed') {
             const destinationStationId = updatedTrip.route?.destinationStation?._id;
-            if (updateTrip.driver && destinationStationId) {
-                await Driver.findByIdAndUpdate(updateTrip.driver._id, { currentStation: destinationStationId });
+            if (updatedTrip.driver && destinationStationId) {
+                await Driver.findByIdAndUpdate(updatedTrip.driver._id, { currentStation: destinationStationId });
             }
-            if (updateTrip.vehicle && destinationStationId) {
-                await Vehicle.findByIdAndUpdate(updateTrip.vehicle._id, { currentStation: destinationStationId });
+            if (updatedTrip.vehicle && destinationStationId) {
+                await Vehicle.findByIdAndUpdate(updatedTrip.vehicle._id, { currentStation: destinationStationId });
             }
         }
         
