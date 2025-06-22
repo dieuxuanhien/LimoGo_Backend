@@ -5,8 +5,8 @@ exports.handleValidationErrors = (req, res, next) => {
     if (!errors.isEmpty()) {
         return res.status(400).json({
             success: false,
-            message: "Dữ liệu đầu vào không hợp lệ.", // Có thể giữ một message chung
-            // Hoặc dùng .mapped() để nhóm lỗi theo từng trường
+            message: "Dữ liệu đầu vào không hợp lệ! Vui lòng kiểm tra lại.",
+            // Sử dụng mapped() để nhóm lỗi theo từng trường
             errors: errors.mapped() 
         });
     }

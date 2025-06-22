@@ -63,5 +63,5 @@ exports.validateUpdateTrip = [
 
 // === VALIDATOR CHUNG CHO VIỆC KIỂM TRA ID TRONG PARAMS ===
 exports.validateIdInParams = [
-    param('id').isMongoId().withMessage('ID không hợp lệ.')
+    param('tripId').isMongoId().withMessage('ID không hợp lệ.')
 ];
