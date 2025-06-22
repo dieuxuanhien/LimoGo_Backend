@@ -2,23 +2,18 @@
 const { Schema, model } = require('mongoose');
 
 const bookingSchema = new Schema({
-    // Người dùng thực hiện đơn đặt vé này
-    user: { 
-        type: Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    tickets: [{ type: Schema.Types.ObjectId, ref: 'Ticket', required: true }],
+    provider: { type: Schema.Types.ObjectId, ref: 'Provider', required: true },
+    totalPrice: { type: Number, required: true },
+    
+    // THÊM TRƯỜNG NÀY: Để theo dõi vòng đời của đơn hàng
+    status: {
+        type: String,
+        enum: ['pending_approval', 'confirmed', 'cancelled', 'expired'],
+        default: 'pending_approval'
     },
-    // Danh sách các ID của vé trong đơn hàng này
-    tickets: [{ 
-        type: Schema.Types.ObjectId, 
-        ref: 'Ticket', 
-        required: true 
-    }],
-    // Tổng giá trị đơn hàng
-    totalPrice: { 
-        type: Number, 
-        required: true 
-    },
+
     // Trạng thái thanh toán, sẽ hữu ích cho việc tích hợp thanh toán sau này
     paymentStatus: { 
         type: String, 

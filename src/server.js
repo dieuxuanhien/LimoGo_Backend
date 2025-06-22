@@ -73,3 +73,34 @@ setInterval(async () => {
 }, 60 * 1000); // every 60 seconds
 
 
+const Booking = require('./models/booking');
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const expiredBookings = await Booking.find({
+      status: 'pending_approval',
+      bookingExpiresAt: { $lt: now }
+    });
+
+    if (expiredBookings.length > 0) {
+        let ticketIdsToRelease = [];
+        expiredBookings.forEach(b => ticketIdsToRelease.push(...b.tickets));
+
+        // Trả các vé về trạng thái 'available'
+        await Ticket.updateMany(
+          { _id: { $in: ticketIdsToRelease } },
+          { $set: { status: 'available', user: null, booking: null }, $unset: { lockExpires: "" } }
+        );
+
+        // Cập nhật trạng thái các đơn hàng thành 'expired'
+        await Booking.updateMany(
+          { _id: { $in: expiredBookings.map(b => b._id) } },
+          { $set: { status: 'expired' } }
+        );
+
+        console.log(`[BookingExpiry] Expired ${expiredBookings.length} pending bookings.`);
+    }
+  } catch (err) {
+    console.error('[BookingExpiry] Error expiring bookings:', err);
+  }
+}, 5 * 60 * 1000); // Chạy mỗi 5 phút

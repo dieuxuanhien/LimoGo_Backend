@@ -48,8 +48,9 @@ const seedData = async () => {
         let usersToCreate = [
             { email: 'admin@limogo.com', password: 'password123', phoneNumber: '+84111111111', userRole: 'admin', name: 'Admin LimoGo', verified: true },
             { email: 'provider.futa@limogo.com', password: 'password123', phoneNumber: '+84222222222', userRole: 'provider', name: 'Provider Futa', verified: true },
-            { email: 'customer1@gmail.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'customer', name: 'Customer A', verified: true },
-            { email: 'customer2@gmail.com', password: 'password123', phoneNumber: '+84444444444', userRole: 'customer', name: 'Customer B', verified: true }
+            { email: 'provider.thanhbuoi@limogo.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'provider', name: 'Provider Thanh Buoi', verified: true },
+            { email: 'customer1@gmail.com', password: 'password123', phoneNumber: '+84444444444', userRole: 'customer', name: 'Customer A', verified: true },
+            { email: 'customer2@gmail.com', password: 'password123', phoneNumber: '+85555555555', userRole: 'customer', name: 'Customer B', verified: true }
         ];
 
         // Băm mật khẩu cho từng user
@@ -58,14 +59,17 @@ const seedData = async () => {
         }
 
         const users = await User.insertMany(usersToCreate);
-        const [adminUser, providerUser, customerUser] = users;
         console.log(`${users.length} Users đã được tạo.`);
 
+        console.log('--- Finding specific users for linking...');
+        const futaProviderUser = await User.findOne({ email: 'provider.futa@limogo.com' });
+        const thanhBuoiProviderUser = await User.findOne({ email: 'provider.thanhbuoi@limogo.com' });
 
-        // --- 2. Tạo Providers và liên kết với User ---
+
+         // --- 2. Tạo Providers và liên kết với User một cách an toàn ---
         const providers = await Provider.insertMany([
-            { name: 'Nhà xe Phương Trang', email: 'contact@futa.vn', phone: '19006067', address: '80 Trần Hưng Đạo, Quận 1, TP. Hồ Chí Minh', status: 'active', mainUser: providerUser._id },
-            { name: 'Nhà xe Thành Bưởi', email: 'contact@thanhbuoi.com', phone: '19006079', address: '266 Lê Hồng Phong, Quận 5, TP. Hồ Chí Minh', status: 'active' }
+            { name: 'Nhà xe Phương Trang', email: 'contact@futa.vn', phone: '19006067', address: '80 Trần Hưng Đạo, Quận 1, TP. Hồ Chí Minh', status: 'active', mainUser: futaProviderUser._id },
+            { name: 'Nhà xe Thành Bưởi', email: 'contact@thanhbuoi.com', phone: '19006079', address: '266 Lê Hồng Phong, Quận 5, TP. Hồ Chí Minh', status: 'active', mainUser: thanhBuoiProviderUser._id }
         ]);
         const [futaProvider, thanhBuoiProvider] = providers;
         console.log(`${providers.length} Providers đã được tạo.`);
