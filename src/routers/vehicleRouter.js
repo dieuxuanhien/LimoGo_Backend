@@ -14,5 +14,5 @@ router.post('/', loggedin, uploadImage , ensureRole(['admin', 'provider']), vehi
 router.patch('/:id', loggedin, uploadImage, ensureRole(['admin', 'provider']), vehicleController.updateVehicle);
 // Delete vehicle
 router.delete('/:id', loggedin, ensureRole(['admin', 'provider']), vehicleController.deleteVehicle);
-
+    
 module.exports = router;

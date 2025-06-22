@@ -13,7 +13,7 @@ router.get('/user/:mainUser', loggedin, ensureRole(['admin']), providerControlle
 
 router.get('/', loggedin, ensureRole(['admin']), providerController.getAllProviders);
 router.get('/:id', loggedin, ensureRole(['admin']), providerController.getProviderById);
-router.post('/create-provider', loggedin, ensureRole(['admin']), providerController.createProvider);
+router.post('/', loggedin, ensureRole(['admin']), providerController.createProvider);
 router.patch('/:id', loggedin, ensureRole(['admin']), providerController.updateProvider);
 router.delete('/:id', loggedin, ensureRole(['admin']), providerController.deleteProvider);
 

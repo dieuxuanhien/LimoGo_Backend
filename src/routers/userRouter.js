@@ -12,7 +12,7 @@ router.delete('/deleteMe', loggedin, userController.deleteMe);
 
 router.get('/', loggedin, ensureRole(['admin']), userController.getAllUsers);
 router.get('/:id', loggedin, ensureRole(['admin']), userController.getUserById);
-router.post('/create-user', loggedin, ensureRole(['admin']), userController.createUser);
+router.post('/', loggedin, ensureRole(['admin']), userController.createUser);
 router.patch('/:id', loggedin, ensureRole(['admin']), userController.updateUser);
 router.delete('/:id', loggedin, ensureRole(['admin']), userController.deleteUser);
 
