@@ -16,6 +16,13 @@ const {
 
 
 // === CÁC ROUTE CÔNG KHAI (KHÔNG CẦN ĐĂNG NHẬP) ===
+
+router.get(
+    '/featured',
+     tripController.getFeaturedTrips
+);
+
+
 router.get(
     '/search', 
     validateSearchTrip,       // 1. Áp dụng quy tắc
