@@ -56,7 +56,7 @@ app.listen(process.env.PORT, '0.0.0.0', () => {
 });
 
 
-
+const Ticket = require('./models/ticket');
 setInterval(async () => {
   try {
     const now = new Date();
