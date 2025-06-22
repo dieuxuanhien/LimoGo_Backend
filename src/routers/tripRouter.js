@@ -14,12 +14,20 @@ const {
 } = require('../validators/tripValidator');
 
 
+
 // === CÁC ROUTE CÔNG KHAI (KHÔNG CẦN ĐĂNG NHẬP) ===
 router.get(
     '/search', 
     validateSearchTrip,       // 1. Áp dụng quy tắc
     handleValidationErrors,   // 2. Xử lý lỗi nếu có
     tripController.searchTripsByCity // 3. Chạy controller
+);
+
+router.get(
+    '/:tripId/tickets', 
+    validateIdInParams,
+    handleValidationErrors,
+    tripController.getTicketsForTrip
 );
 
 
@@ -38,7 +46,7 @@ router.get(
 
 // Get trip by ID
 router.get(
-    '/:id', 
+    '/:tripId', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
     isProvider,
@@ -60,7 +68,7 @@ router.post(
 
 // Update trip
 router.patch(
-    '/:id', 
+    '/tripId', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
     isProvider,
@@ -71,7 +79,7 @@ router.patch(
 
 // Delete trip
 router.delete(
-    '/:id', 
+    '/:tripId', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
     isProvider,

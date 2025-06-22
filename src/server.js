@@ -1,24 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const app = express();
 const path = require('path');
 const authRouter = require('./routers/authRouter');
-const userRouter = require('./routers/userRouter');
+const bookingRouter = require('./routers/bookingRouter');
 const driverRouter = require('./routers/driverRouter');
-const routeRouter = require('./routers/routeRouter');
-const reviewRouter = require('./routers/reviewRouter');
-const vehicleRouter = require('./routers/vehicleRouter');
-const tripRouter = require('./routers/tripRouter');
 const issueRouter = require('./routers/issueRouter');
-const ticketRouter = require('./routers/ticketRouter');
-const stationRouter = require('./routers/stationRouter');
 const providerRouter = require('./routers/providerRouter');
-const { ensureRole } = require('./middlewares/identification');
-dotenv.config();
+const reviewRouter = require('./routers/reviewRouter');
+const routeRouter = require('./routers/routeRouter');
+const stationRouter = require('./routers/stationRouter');
+const ticketRouter = require('./routers/ticketRouter');
+const tripRouter = require('./routers/tripRouter');
+const userRouter = require('./routers/userRouter');
+const vehicleRouter = require('./routers/vehicleRouter');
+
 
 app.use(cors());
 app.use(helmet());
@@ -35,17 +34,18 @@ mongoose.connect(process.env.MONGO_URI, {
   console.error('MongoDB connection error:', err);
 });
 
-app.use('/auth', authRouter);
-app.use('/user', userRouter);
-app.use('/driver', driverRouter);
-app.use('/route', routeRouter);
-app.use('/review', reviewRouter);
-app.use('/vehicle', vehicleRouter);
-app.use('/trip', tripRouter);
-app.use('/issue', issueRouter);
-app.use('/ticket', ticketRouter);
-app.use('/station', stationRouter);
-app.use('/provider', providerRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/booking', bookingRouter);
+app.use('/api/drivers', driverRouter);
+app.use('/api/issues', issueRouter);
+app.use('/api/providers', providerRouter);
+app.use('/api/reviews', reviewRouter);
+app.use('/api/routes', routeRouter);
+app.use('/api/stations', stationRouter);
+app.use('/api/tickets', ticketRouter);
+app.use('/api/trips', tripRouter);
+app.use('/api/users', userRouter);
+app.use('/api/vehicles', vehicleRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
@@ -71,4 +71,5 @@ setInterval(async () => {
     console.error('[TicketLock] Error releasing expired seat locks:', err);
   }
 }, 60 * 1000); // every 60 seconds
+
 

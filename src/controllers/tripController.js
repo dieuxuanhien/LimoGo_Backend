@@ -1,9 +1,12 @@
+const mongoose = require('mongoose');
 const Trip = require('../models/trip');
 const Provider = require('../models/provider');
 const Driver = require('../models/driver');
 const Vehicle = require('../models/vehicle');
 const Route = require('../models/route');
 const Station = require('../models/station');
+const Ticket = require('../models/ticket');
+
 
 
 // === HÀM DÀNH CHO ADMIN / PROVIDER ===
@@ -264,11 +267,36 @@ const searchTripsByCity = async (req, res) => {
     } 
 }
 
+
+const getTicketsForTrip = async (req, res) => {
+    try {
+        const { tripId } = req.params;
+        const tickets = await Ticket.aggregate([
+            { $match: { trip: new mongoose.Types.ObjectId(tripId) } },
+            { $addFields: { seatNumberNumeric: { $toInt: "$seatNumber" } } },
+            { $sort: { seatNumberNumeric: 1 } },
+            {
+                $project: {
+                    seatNumber: 1,
+                    status: 1,
+                    price: 1
+                }
+            }
+        ]);
+        res.status(200).json({ success: true, data: tickets });
+    } catch (err) {
+        console.error("Error in getTicketsForTrip:", err);
+        res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+};
+
+
 module.exports = {
     createTrip,
     getTripById,
     getAllTrips,
     updateTrip, 
     deleteTrip,
-    searchTripsByCity
+    searchTripsByCity,
+    getTicketsForTrip
 };

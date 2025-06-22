@@ -48,7 +48,8 @@ const seedData = async () => {
         let usersToCreate = [
             { email: 'admin@limogo.com', password: 'password123', phoneNumber: '+84111111111', userRole: 'admin', name: 'Admin LimoGo', verified: true },
             { email: 'provider.futa@limogo.com', password: 'password123', phoneNumber: '+84222222222', userRole: 'provider', name: 'Provider Futa', verified: true },
-            { email: 'customer@gmail.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'customer', name: 'Customer A', verified: true }
+            { email: 'customer1@gmail.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'customer', name: 'Customer A', verified: true },
+            { email: 'customer2@gmail.com', password: 'password123', phoneNumber: '+84444444444', userRole: 'customer', name: 'Customer B', verified: true }
         ];
 
         // Băm mật khẩu cho từng user
