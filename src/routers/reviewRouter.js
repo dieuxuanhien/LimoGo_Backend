@@ -9,7 +9,7 @@ const { loggedin, ensureRole } = require('../middlewares/identification');
 
 router.get('/', loggedin, ensureRole(['admin']), reviewController.getAllReviews);
 router.get('/:id', loggedin, reviewController.getReviewById);
-router.post('/create-review', loggedin, ensureRole(['user', 'admin']), reviewController.createReview);
+router.post('/', loggedin, ensureRole(['user', 'admin']), reviewController.createReview);
 router.patch('/:id', loggedin, ensureRole(['user', 'admin']), reviewController.updateReview);
 router.delete('/:id', loggedin, ensureRole(['user', 'admin']), reviewController.deleteReview);
 

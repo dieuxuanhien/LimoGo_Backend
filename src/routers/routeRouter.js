@@ -8,7 +8,7 @@ const { loggedin, ensureRole } = require('../middlewares/identification');
 //router.get('/search', loggedin, routeController.searchRoutes);
 router.get('/', loggedin, routeController.getAllRoutes);
 router.get('/:id', loggedin, routeController.getRouteById);
-router.post('/create-route', loggedin, ensureRole(['admin']), routeController.createRoute);
+router.post('/', loggedin, ensureRole(['admin']), routeController.createRoute);
 router.patch('/:id', loggedin, ensureRole(['admin']), routeController.updateRoute);
 router.delete('/:id', loggedin, ensureRole(['admin']), routeController.deleteRoute);
 
