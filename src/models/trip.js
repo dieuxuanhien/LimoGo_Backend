@@ -50,6 +50,8 @@
   });
 
 
-  tripSchema.index({ route: 1, departureTime: 1 });
+  tripSchema.index({ route: 1, departureTime: 1 }); 
+  tripSchema.index({ provider: 1, departureTime: -1 }); 
+
 
   module.exports = model('Trip', tripSchema);

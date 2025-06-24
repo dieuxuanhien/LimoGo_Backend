@@ -3,6 +3,20 @@ const router = express.Router();
 
 const providerController = require('../controllers/providerController');
 const { loggedin, ensureRole } = require('../middlewares/identification');
+const { isProvider } = require('../middlewares/roleMiddleware');
+const { handleValidationErrors } = require('../middlewares/validationHandler'); // <-- IMPORT
+const { validateGetDashboardStats } = require('../validators/providerValidator'); // <-- IMPORT
+
+
+router.get(
+    '/dashboard-stats',
+    loggedin,
+    ensureRole(['provider']),
+    isProvider,
+    validateGetDashboardStats,   
+    handleValidationErrors,    
+    providerController.getDashboardStats
+);
 
 
 router.get('/get-provider-current-user', loggedin, ensureRole(['provider']), providerController.getProviderByCurrentUser);
@@ -18,4 +32,7 @@ router.patch('/:id', loggedin, ensureRole(['admin']), providerController.updateP
 router.delete('/:id', loggedin, ensureRole(['admin']), providerController.deleteProvider);
 
 
+
+
 module.exports = router;
+

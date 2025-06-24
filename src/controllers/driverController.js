@@ -1,114 +1,138 @@
 const Driver = require('../models/driver');
-const Provider = require('../models/provider');
 
-// Get all drivers (admin sees all, provider sees their own)
-exports.getAllDrivers = async (req, res) => {
-    let filter = {};
-    if (req.user.role === 'provider') {
-        const provider = await Provider.findOne({ mainUser: req.user._id });
-        if (!provider) return res.status(403).json({ success: false, message: 'Provider not found for this user' });
-        filter.provider = provider._id;
-    }
-    if (req.query.name) filter.name = req.query.name;
-    if (req.query.currentStation) filter.currentStation = req.query.currentStation;
-    if (req.query.age) filter.age = req.query.age;
-    if (req.query.status) filter.status = req.query.status;
-    try {
-        const drivers = await Driver.find(filter).populate('currentStation provider');
-        res.status(200).json({ success: true, data: drivers });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+// --- Các hàm không thay đổi logic, chỉ thay đổi cách export ---
 
-// Get driver by ID (admin any, provider only their own)
-exports.getDriverById = async (req, res) => {
-    const { id } = req.params;
+const getAllDrivers = async (req, res) => {
     try {
-        const driver = await Driver.findById(id).populate('currentStation provider');
-        if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
-        if (req.user.role === 'provider' && String(driver.provider) !== String(await getProviderId(req.user._id))) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Not your driver' });
-        }
-        res.status(200).json({ success: true, data: driver });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-// Create driver (admin any, provider only for themselves)
-exports.createDriver = async (req, res) => {
-    try {
-        let providerId = req.body.provider;
+        let filter = {};
         if (req.user.role === 'provider') {
-            const provider = await Provider.findOne({ mainUser: req.user._id });
-            if (!provider) return res.status(403).json({ success: false, message: 'Provider not found for this user' });
-            providerId = provider._id;
+            filter.provider = req.provider._id;
+        } else if (req.user.role === 'admin' && req.query.provider) {
+            filter.provider = req.query.provider;
         }
+
+        if (req.query.name) filter.name = { $regex: req.query.name, $options: 'i' };
+        if (req.query.currentStation) filter.currentStation = req.query.currentStation;
+        if (req.query.age) filter.age = req.query.age;
+        if (req.query.status) filter.status = req.query.status;
+
+        const drivers = await Driver.find(filter)
+            .populate('currentStation', 'name city')
+            .populate('provider', 'name');
+
+        res.status(200).json({ success: true, count: drivers.length, data: drivers });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách tài xế.', error: error.message });
+    }
+};
+
+const createDriver = async (req, res) => {
+    try {
         const { name, currentStation, age, status } = req.body;
-        if (!name || !providerId || !age) {
-            return res.status(400).json({ success: false, message: 'Name, provider, and age are required' });
+        let providerId;
+
+        if (req.user.role === 'provider') {
+            providerId = req.provider._id;
+        } else if (req.user.role === 'admin') {
+            providerId = req.body.provider;
         }
-        let photo = req.file ? req.file.url : null;
-        const driver = await Driver.create({ name, currentStation, provider: providerId, age, photo, status: status || 'available' });
-        res.status(201).json({ success: true, data: driver });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
 
-// Update driver (admin any, provider only their own)
-exports.updateDriver = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const driver = await Driver.findById(id);
-        if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
-        if (req.user.role === 'provider' && String(driver.provider) !== String(await getProviderId(req.user._id))) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Not your driver' });
+        const photo = req.file ? req.file.path : null;
+        const driverData = { name, currentStation, provider: providerId, age, photo, status: status || 'available' };
+        const driver = await Driver.create(driverData);
+
+        res.status(201).json({ success: true, message: 'Tạo tài xế thành công.', data: driver });
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ success: false, message: error.message });
         }
-        let photo = req.file ? req.file.url : driver.photo;
-        const updated = await Driver.findByIdAndUpdate(id, { ...req.body, photo }, { new: true, runValidators: true });
-        res.status(200).json({ success: true, data: updated });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ khi tạo tài xế.', error: error.message });
     }
 };
 
-// Delete driver (admin any, provider only their own)
-exports.deleteDriver = async (req, res) => {
-    const { id } = req.params;
+
+// --- Các hàm được TỐI ƯU HÓA nhờ middleware ---
+
+/**
+ * Lấy chi tiết một tài xế.
+ * Middleware `checkDriverOwnership` đã tìm và xác thực tài xế.
+ * Chúng ta chỉ việc trả về `req.driver`.
+ */
+const getDriverById = async (req, res) => {
+    // Không cần try...catch hay tìm kiếm nữa. Middleware đã xử lý hết.
+    // Chúng ta có thể populate thêm dữ liệu nếu muốn trước khi gửi về
+    const driver = await req.driver.populate([
+        { path: 'currentStation', select: 'name city' },
+        { path: 'provider', select: 'name' }
+    ]);
+    res.status(200).json({ success: true, data: driver });
+};
+
+/**
+ * Cập nhật thông tin tài xế.
+ * Middleware `checkDriverOwnership` đã tìm và xác thực tài xế.
+ */
+const updateDriver = async (req, res) => {
     try {
-        const driver = await Driver.findById(id);
-        if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
-        if (req.user.role === 'provider' && String(driver.provider) !== String(await getProviderId(req.user._id))) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Not your driver' });
+        const { name, currentStation, age, status } = req.body;
+        const updateData = { name, currentStation, age, status };
+
+        if (req.file) {
+            updateData.photo = req.file.path;
         }
-        await Driver.findByIdAndDelete(id);
-        res.status(200).json({ success: true, message: 'Driver deleted successfully' });
+        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+        
+        // Sử dụng req.driver._id đã được xác thực
+        const updatedDriver = await Driver.findByIdAndUpdate(req.driver._id, updateData, { new: true, runValidators: true })
+            .populate('currentStation', 'name city')
+            .populate('provider', 'name');
+        
+        res.status(200).json({ success: true, message: 'Cập nhật tài xế thành công.', data: updatedDriver });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ khi cập nhật tài xế.', error: error.message });
     }
 };
 
-// Get all drivers for current provider
-exports.getDriverByCurrentProvider = async (req, res) => {
+/**
+ * Xóa một tài xế.
+ * Middleware `checkDriverOwnership` đã tìm và xác thực tài xế.
+ */
+const deleteDriver = async (req, res) => {
     try {
-        const provider = await Provider.findOne({ mainUser: req.user._id });
-        if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
-        const drivers = await Driver.find({ provider: provider._id }).populate('currentStation provider');
-        res.status(200).json({ success: true, data: drivers });
+        // Sử dụng req.driver đã được xác thực
+        if (req.driver.status === 'assigned') {
+            return res.status(400).json({ success: false, message: 'Không thể xóa tài xế đang được phân công cho một chuyến đi.' });
+        }
+
+        await Driver.findByIdAndDelete(req.driver._id);
+        res.status(200).json({ success: true, message: 'Xóa tài xế thành công.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xóa tài xế.', error: error.message });
     }
 };
 
-// Helper to get providerId from userId
-async function getProviderId(userId) {
-    const provider = await Provider.findOne({ mainUser: userId });
-    return provider ? provider._id : null;
-}
+const updateDriverStation = async (driverId, stationId) => {
+    if (!driverId || !stationId) {
+        console.error('[updateDriverStation] Lỗi: Cần có driverId và stationId.');
+        return;
+    }
+    try {
+        await Driver.findByIdAndUpdate(driverId, { currentStation: stationId, status: 'available' });
+        console.log(`[Cập nhật vị trí] Vị trí tài xế ${driverId} đã được cập nhật thành ${stationId}.`);
+    } catch (error) {
+        console.error(`[Cập nhật vị trí] Lỗi khi cập nhật vị trí tài xế:`, error);
+    }
+};
 
-// To be called from tripController on trip completion
-exports.updateDriverStation = async (driverId, stationId) => {
-    await Driver.findByIdAndUpdate(driverId, { currentStation: stationId });
+// --- THỐNG NHẤT CÁCH EXPORT ---
+module.exports = {
+    getAllDrivers,
+    createDriver,
+    getDriverById,
+    updateDriver,
+    deleteDriver,
+    updateDriverStation
 };

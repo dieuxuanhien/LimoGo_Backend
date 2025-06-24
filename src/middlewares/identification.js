@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const user = require('../models/user');
 
 exports.loggedin = (req, res, next) => {
+    console.log(`\n--- [DEBUG] Middleware 'loggedin' được gọi cho request: ${req.method} ${req.path}`);
+    console.log('Headers Authorization:', req.headers.authorization);
     let token;
     if (req.headers.authorization) {
         token = req.headers.authorization;

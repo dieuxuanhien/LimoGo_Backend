@@ -88,19 +88,42 @@ const seedData = async () => {
         // --- 4. Tạo Drivers ---
         const drivers = await Driver.insertMany([
             { name: 'Nguyễn Văn A', age: 35, photo: 'url_to_photo_a.jpg', provider: futaProvider._id, currentStation: hcmStation1._id, status: 'available' },
-            { name: 'Trần Thị B', age: 40, photo: 'url_to_photo_b.jpg', provider: thanhBuoiProvider._id, currentStation: hcmStation2._id, status: 'available' }
+            { name: 'Lê Thị B', age: 38, photo: 'uploads/default_b.jpg', provider: futaProvider._id, currentStation: daLatStation._id, status: 'assigned' },
+            { name: 'Trần Thị C', age: 40, photo: 'url_to_photo_c.jpg', provider: thanhBuoiProvider._id, currentStation: hcmStation2._id, status: 'available' }
         ]);
-        const [driver1, driver2] = drivers;
+        const [driverFuta1, driverFuta2, driverThanhBuoi] = drivers;
         console.log(`${drivers.length} Drivers đã được tạo.`);
 
-        // --- 5. Tạo Vehicles ---
-        const vehicles = await Vehicle.insertMany([
-            { type: 'Giường nằm 40 chỗ', licensePlate: '51A-123.45', capacity: 40, currentStation: hcmStation1._id },
-            { type: 'Limousine 29 chỗ', licensePlate: '51B-678.90', capacity: 29, currentStation: hcmStation2._id }
-        ]);
-        const [vehicle1, vehicle2] = vehicles;
-        console.log(`${vehicles.length} Vehicles đã được tạo.`);
+
+        // --- 5. Tạo Vehicles (ĐÃ SỬA ĐỔI) ---
+        console.log('--- Creating vehicles with provider links...');
+        // Xe để test xóa thành công (thuộc Phương Trang)
+        const vehicleA1_ok_to_delete = await Vehicle.create(
+            { type: 'Giường nằm 40 chỗ', licensePlate: '51A-OKDELETE', capacity: 40, currentStation: hcmStation1._id, provider: futaProvider._id }
+        );
+        // Xe để test xóa thất bại (thuộc Phương Trang)
+        const vehicleA2_for_trip = await Vehicle.create(
+            { type: 'Limousine 29 chỗ', licensePlate: '51B-FORTRIP', capacity: 29, currentStation: hcmStation2._id, provider: futaProvider._id }
+        );
+        // Xe của nhà xe khác để test cấm truy cập (thuộc Thành Bưởi)
+        const vehicleB1_foreign = await Vehicle.create(
+            { type: 'Limousine 9 chỗ', licensePlate: '51C-FOREIGN', capacity: 9, currentStation: hcmStation2._id, provider: thanhBuoiProvider._id }
+        );
+
+        // Tạo thêm 12 xe cho Phương Trang để test phân trang
+        for (let i = 1; i <= 12; i++) {
+            await Vehicle.create({
+                type: 'Xe Test Phân Trang',
+                licensePlate: `51P-PAGE${i.toString().padStart(2, '0')}`,
+                capacity: 30,
+                currentStation: hcmStation1._id,
+                provider: futaProvider._id
+            });
+        }
+        console.log(`15 Vehicles đã được tạo (3 xe test chính + 12 xe test phân trang).`);
         
+        
+
         // --- 6. Tạo Routes ---
         const routes = await Route.insertMany([
             { originStation: hcmStation1._id, destinationStation: nhaTrangStation._id, distanceKm: 430, estimatedDurationMin: 480 },
@@ -109,12 +132,23 @@ const seedData = async () => {
         const [routeHCM_NT, routeHCM_DL] = routes;
         console.log(`${routes.length} Routes đã được tạo.`);
 
+
         // --- 7. Tạo Trips ---
-        const trip1 = new Trip({ route: routeHCM_NT._id, vehicle: vehicle1._id, driver: driver1._id, provider: futaProvider._id, departureTime: new Date('2025-09-15T07:00:00'), arrivalTime: new Date('2025-09-15T15:00:00'), price: 350000 });
-        const trip2 = new Trip({ route: routeHCM_DL._id, vehicle: vehicle2._id, driver: driver2._id, provider: thanhBuoiProvider._id, departureTime: new Date('2025-09-16T09:30:00'), arrivalTime: new Date('2025-09-16T16:30:00'), price: 400000 });
+        const trip1 = new Trip({ route: routeHCM_NT._id, vehicle: vehicleA1_ok_to_delete._id, driver: driverFuta1._id, provider: futaProvider._id, departureTime: new Date('2025-09-15T07:00:00'), arrivalTime: new Date('2025-09-15T15:00:00'), price: 350000 });
+        const trip2 = new Trip({ route: routeHCM_DL._id, vehicle: vehicleB1_foreign._id, driver: driverThanhBuoi._id, provider: thanhBuoiProvider._id, departureTime: new Date('2025-09-16T09:30:00'), arrivalTime: new Date('2025-09-16T16:30:00'), price: 400000 });
+        const tripForDeletionTest = new Trip({ 
+            route: routeHCM_DL._id, 
+            vehicle: vehicleA2_for_trip._id, 
+            driver: driverFuta1._id, 
+            provider: futaProvider._id, 
+            departureTime: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000), // 10 ngày sau
+            arrivalTime: new Date(new Date().getTime() + 10.5 * 24 * 60 * 60 * 1000), 
+            price: 400000 
+        });
         await trip1.save();
         await trip2.save();
-        console.log(`2 Trips đã được tạo (và các Tickets tương ứng).`);
+        await tripForDeletionTest.save(); 
+        console.log(`3 Trips đã được tạo (và các Tickets tương ứng).`);
         
         console.log('--- Sample data created successfully!');
 
