@@ -24,4 +24,6 @@ const bookingSchema = new Schema({
     bookingExpiresAt: { type: Date }
 }, { timestamps: true });
 
+bookingSchema.index({ provider: 1, status: 1, createdAt: -1 });
+
 module.exports = model('Booking', bookingSchema);
