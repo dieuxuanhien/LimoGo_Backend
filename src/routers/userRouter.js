@@ -4,17 +4,71 @@ const router = express.Router();
 const { loggedin, ensureRole } = require('../middlewares/identification');
 const userController = require('../controllers/userController');
 
+const { 
+    validateCreateUser, 
+    validateUpdateUser, 
+    validateUpdateMe 
+} = require('../validators/userValidator');
+const { handleValidationErrors } = require('../middlewares/validationHandler');
+
+
+// === CÁC ROUTE QUẢN LÝ CÁ NHÂN ===
 router.get('/me', loggedin, userController.getMe);
-router.patch('/updateMe', loggedin, userController.updateMe);
-router.delete('/deleteMe', loggedin, userController.deleteMe); 
+
+router.patch(
+    '/updateMe', 
+    loggedin, 
+    validateUpdateMe, // Kiểm tra dữ liệu gửi lên
+    handleValidationErrors, // Xử lý nếu có lỗi validation
+    userController.updateMe
+);
+
+router.delete('/deleteMe', loggedin, ensureRole(['customer', 'provider']), userController.deleteMe);
 
 
 
-router.get('/', userController.getAllUsers);
-router.get('/:id', userController.getUserById);
-router.post('/', userController.createUser);
-router.patch('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser);
 
+// === CÁC ROUTE QUẢN LÝ DÀNH CHO ADMIN ===
+
+router.get(
+    '/', 
+    loggedin, 
+    ensureRole(['admin']), 
+    userController.getAllUsers
+);
+
+router.get(
+    '/:id', 
+    loggedin, 
+    ensureRole(['admin']), 
+    userController.getUserById
+);
+
+router.post(
+    '/', 
+    loggedin, 
+    ensureRole(['admin']), 
+    validateCreateUser,
+    handleValidationErrors,
+    userController.createUser
+);
+
+router.patch(
+    '/:id', 
+    loggedin, 
+    ensureRole(['admin']),
+    validateUpdateUser,
+    handleValidationErrors, 
+    userController.updateUser
+);
+
+router.delete(
+    '/:id', 
+    loggedin, 
+    ensureRole(['admin']), 
+    userController.deleteUser
+);
 
 module.exports = router;
+
+
