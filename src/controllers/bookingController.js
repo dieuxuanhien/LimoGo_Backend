@@ -135,3 +135,62 @@ exports.approveBooking = async (req, res) => {
         session.endSession();
     }
 };
+
+
+exports.getMyBookings = async (req, res) => {
+    try {
+        // 1. Logic Phân trang: Lấy giá trị từ query hoặc dùng giá trị mặc định
+        const page = req.query.page || 1;
+        const limit = req.query.limit || 10;
+        const skip = (page - 1) * limit;
+
+        // 2. Điều kiện lọc: Chỉ lấy các booking của user đang đăng nhập
+        const filter = { user: req.user._id };
+
+        // 3. Thực hiện 2 truy vấn song song: một để lấy dữ liệu, một để đếm tổng số
+        // Định nghĩa các tùy chọn populate cho từng cấp
+        const stationPopulateOptions = { 
+            path: 'originStation destinationStation', 
+            select: 'name city' 
+        };
+
+        const routePopulateOptions = { 
+            path: 'route', 
+            select: 'originStation destinationStation', 
+            populate: stationPopulateOptions 
+        };
+
+        const tripPopulateOptions = { 
+            path: 'trip', 
+            select: 'departureTime arrivalTime route', 
+            populate: routePopulateOptions 
+        };
+
+        const ticketsPopulateOptions = {
+            path: 'tickets',
+            select: 'seatNumber price trip',
+            populate: tripPopulateOptions
+        };
+
+        const [ bookings, totalCount ] = await Promise.all([
+                Booking.find(filter)
+                    .populate(ticketsPopulateOptions)
+                    .sort({ createAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Booking.countDocuments(filter)  
+        ]);
+
+        // 4. Trả về kết quả có cấu trúc phân trang
+        res.status(200).json({
+            success: true,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            currentPage: page,
+            data: bookings
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};

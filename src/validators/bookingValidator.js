@@ -1,4 +1,4 @@
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 
 // Quy tắc cho việc khóa ghế
 exports.validateLockSeat = [
@@ -18,8 +18,22 @@ exports.validateConfirmBooking = [
         .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.')
 ];
 
+
 // Quy tắc cho API duyệt đơn hàng
 exports.validateApproveBooking = [
     param('bookingId')
         .isMongoId().withMessage('Booking ID trong URL không hợp lệ.')
+];
+
+
+exports.validateGetHistory = [
+    query('page')
+        .optional() // "page" là tùy chọn, không bắt buộc
+        .isInt({ gt: 0 }).withMessage('Page phải là số nguyên lớn hơn 0.')
+        .toInt(), // Tiện ích: tự động chuyển đổi chuỗi thành số
+
+    query('limit')
+        .optional() // "limit" là tùy chọn
+        .isInt({ gt: 0, lte: 50 }).withMessage('Limit phải là số nguyên từ 1 đến 50.') // Giới hạn để tránh client yêu cầu quá nhiều dữ liệu
+        .toInt()
 ];

@@ -26,4 +26,7 @@ const bookingSchema = new Schema({
 
 bookingSchema.index({ provider: 1, status: 1, createdAt: -1 });
 
+bookingSchema.index({ user: 1, createdAt: -1 });
+
+
 module.exports = model('Booking', bookingSchema);
