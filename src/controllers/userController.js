@@ -7,12 +7,23 @@ const { filterObject } = require('../utils/helpers');
 
 // === HÀM QUẢN LÝ CÁ NHÂN ===
 
-exports.getMe = (req, res, next) => {
+exports.getMe = catchAsync(async (req, res, next) => {
+    // 1. Lấy ID từ token (đã được middleware `loggedin` xử lý)
+    const userId = req.user._id;
+
+    // 2. Dùng ID đó để truy vấn CSDL và lấy thông tin người dùng mới nhất
+    const me = await User.findById(userId);
+
+    if (!me) {
+        return next(new AppError('Không tìm thấy người dùng tương ứng với token này.', 404));
+    }
+    
+    // 3. Trả về document user đầy đủ và mới nhất
     res.status(200).json({
         success: true,
-        data: req.user,
+        data: me,
     });
-};
+});
 
 exports.updateMe = catchAsync(async (req, res, next) => {
     const updateData = {};
