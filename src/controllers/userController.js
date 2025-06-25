@@ -112,10 +112,10 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 });
 
 exports.getUserById = catchAsync(async (req, res, next) => {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
-    }
+    // Validator đã tìm và gắn user vào req.foundUser, ta chỉ cần dùng lại
+    const user = req.foundUser.toObject(); // Chuyển sang object thường để xử lý
+    delete user.password; // Đảm bảo password không bị lộ
+
     res.status(200).json({ success: true, data: user });
 });
 
@@ -137,27 +137,26 @@ exports.createUser = catchAsync(async (req, res, next) => {
     });
 });
 
+
 exports.updateUser = catchAsync(async (req, res, next) => {
+    // Lấy user từ req thay vì query lại
+    const userToUpdate = req.foundUser;
+
     const updateData = filterObject(req.body, 'name', 'email', 'phoneNumber', 'gender', 'dateOfBirth', 'userRole', 'verified');
 
     if (req.body.password) {
         updateData.password = await hashPassword(req.body.password);
     }
-
-    const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-        new: true,
-        runValidators: true
-    }).select('-password');
-
-    if (!user) {
-        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
-    }
     
-    // THAY ĐỔI: Thêm message
+    // Cập nhật các trường  
+    Object.assign(userToUpdate, updateData);
+    const updatedUser = await userToUpdate.save();
+    updatedUser.password = undefined;
+
     res.status(200).json({ 
         success: true, 
         message: `Cập nhật thông tin người dùng thành công.`,
-        data: user 
+        data: updatedUser 
     });
 });
 
@@ -165,10 +164,8 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
     if (String(req.user._id) === req.params.id) {
         return next(new AppError('Admin không thể tự xóa tài khoản qua API này.', 400));
     }
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) {
-        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
-    }
+
+    await req.foundUser.deleteOne();
 
     // THAY ĐỔI: Chuyển sang 200 và thêm message
     res.status(200).json({
