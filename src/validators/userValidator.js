@@ -53,7 +53,7 @@ exports.validateCreateUser = [
 
     body('gender')
         .optional()
-        .isIn(['Male', 'Female', 'Khác']).withMessage("Giới tính không hợp lệ"),
+        .isIn(['Male', 'Female', 'Others']).withMessage("Giới tính không hợp lệ"),
 
     body('dateOfBirth')
         .optional()
@@ -103,7 +103,7 @@ exports.validateUpdateUser = [
 
     // Các trường còn lại tương tự như createUser nhưng là optional
     body('name').optional().trim().notEmpty().withMessage('Tên không được để trống'),
-    body('gender').optional().isIn(['Male', 'Female', 'Khác']).withMessage("Giới tính không hợp lệ"),
+    body('gender').optional().isIn(['Male', 'Female', 'Others']).withMessage("Giới tính không hợp lệ"),
     body('dateOfBirth').optional().isISO8601().withMessage('Ngày sinh phải có định dạng YYYY-MM-DD').toDate(),
     body('userRole').optional().isIn(['admin', 'customer', 'provider']).withMessage("Vai trò người dùng không hợp lệ"),
     body('verified').optional().isBoolean().withMessage('Trạng thái xác thực phải là true hoặc false'),
