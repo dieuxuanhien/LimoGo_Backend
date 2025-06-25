@@ -106,3 +106,21 @@ exports.validateUpdateMe = [
     body('userRole').not().exists().withMessage('Không được phép thay đổi vai trò.'),
     body('verified').not().exists().withMessage('Không được phép thay đổi trạng thái xác thực.'),
 ];
+
+exports.validateUpdateMyPassword = [
+    body('passwordCurrent')
+        .notEmpty().withMessage('Mật khẩu hiện tại là bắt buộc'),
+    
+    body('password')
+        .notEmpty().withMessage('Mật khẩu mới là bắt buộc')
+        .isLength({ min: 6 }).withMessage('Mật khẩu mới phải có ít nhất 6 ký tự'),
+
+    body('passwordConfirm')
+        .notEmpty().withMessage('Bạn cần xác nhận mật khẩu mới')
+        .custom((value, { req }) => {
+            if (value !== req.body.password) {
+                throw new Error('Mật khẩu xác nhận không khớp với mật khẩu mới');
+            }
+            return true;
+        }),
+];

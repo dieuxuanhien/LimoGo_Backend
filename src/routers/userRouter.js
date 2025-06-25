@@ -7,8 +7,10 @@ const userController = require('../controllers/userController');
 const { 
     validateCreateUser, 
     validateUpdateUser, 
-    validateUpdateMe 
+    validateUpdateMe,
+    validateUpdateMyPassword 
 } = require('../validators/userValidator');
+
 const { handleValidationErrors } = require('../middlewares/validationHandler');
 
 
@@ -21,6 +23,14 @@ router.patch(
     validateUpdateMe, // Kiểm tra dữ liệu gửi lên
     handleValidationErrors, // Xử lý nếu có lỗi validation
     userController.updateMe
+);
+
+router.patch(
+    '/updateMyPassword',
+    loggedin,
+    validateUpdateMyPassword,
+    handleValidationErrors,
+    userController.updateMyPassword
 );
 
 router.delete('/deleteMe', loggedin, ensureRole(['customer', 'provider']), userController.deleteMe);
