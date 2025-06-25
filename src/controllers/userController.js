@@ -1,167 +1,178 @@
 const User = require('../models/user');
-const { hashPassword } = require('../utils/hashing');
+const { hashPassword, comparePassword } = require('../utils/hashing');
+const jwt = require('jsonwebtoken'); 
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
+const { filterObject } = require('../utils/helpers');
 
+// === HÀM QUẢN LÝ CÁ NHÂN ===
 
-// GET /user/me
-exports.getMe = async (req, res) => {
-    try {
-        // req.user is set by the loggedin middleware (from JWT)
-        const user = await User.findById(req.user._id).select('-password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.json({ success: true, data: user });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
+exports.getMe = (req, res, next) => {
+    res.status(200).json({
+        success: true,
+        data: req.user,
+    });
 };
 
-// PUT /user/updateMe
-exports.updateMe = async (req, res) => {
-    try {
-        console.log('Request body:', req.body); // Add this line
-        const allowedFields = ['name', 'phoneNumber', 'dateOfBirth', 'gender'];
-        const updates = {};
-        allowedFields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                updates[field] = req.body[field];
-            }
-        });
-        if (Object.keys(updates).length === 0) {
-            return res.status(400).json({ success: false, message: 'No valid fields to update.' });
+exports.updateMe = catchAsync(async (req, res, next) => {
+    const updateData = {};
+    const allowedFields = ['name', 'dateOfBirth', 'gender', 'phoneNumber'];
+    allowedFields.forEach(field => {
+        if (req.body[field] !== undefined && req.body[field] !== null) {
+            updateData[field] = req.body[field];
         }
-        const user = await User.findByIdAndUpdate(
-            req.user._id,
-            updates,
-            { new: true, runValidators: true }
-        ).select('-password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+    });
+
+    if (Object.keys(updateData).length === 0) {
+        return next(new AppError('Không có trường dữ liệu hợp lệ nào được cung cấp để cập nhật.', 400));
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, updateData, {
+        new: true,
+        runValidators: true
+    }).select('-password');
+
+    if (!updatedUser) {
+        return next(new AppError('Không tìm thấy người dùng tương ứng với token này. Có thể tài khoản đã bị xóa.', 404));
+    }
+
+    // THAY ĐỔI: Thêm message
+    res.status(200).json({
+        success: true,
+        message: 'Cập nhật thông tin cá nhân thành công!',
+        data: updatedUser,
+    });
+});
+
+exports.updateMyPassword = catchAsync(async (req, res, next) => {
+    const user = await User.findById(req.user._id).select('+password');
+
+    const { passwordCurrent, password } = req.body;
+    if (!user || !(await comparePassword(passwordCurrent, user.password))) {
+        return next(new AppError('Mật khẩu hiện tại không đúng', 401));
+    }
+
+    user.password = await hashPassword(password);
+    await user.save();
+
+    const token = jwt.sign({ _id: user._id, role: user.userRole }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN || '90d',
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Cập nhật mật khẩu thành công!',
+        token,
+    });
+});
+
+exports.deleteMe = catchAsync(async (req, res, next) => {
+    await User.findByIdAndDelete(req.user._id);
+    
+    // THAY ĐỔI: Chuyển sang 200 và thêm message
+    res.status(200).json({
+        success: true,
+        message: 'Tài khoản của bạn đã được xóa thành công.',
+    });
+});
+
+
+// === HÀM QUẢN LÝ CHO ADMIN ===
+
+exports.getAllUsers = catchAsync(async (req, res, next) => {
+    const directFilterableFields = ['userRole', 'verified', 'gender'];
+    const regexFilterableFields = ['email', 'phoneNumber', 'name'];
+    let filter = {};
+
+    Object.keys(req.query).forEach(key => {
+        if (directFilterableFields.includes(key)) {
+            filter[key] = req.query[key];
+        } else if (regexFilterableFields.includes(key)) {
+            filter[key] = { $regex: req.query[key], $options: 'i' };
         }
-        res.json({ success: true, data: user });
-    } catch (error) {
-        console.error('Update error:', error); // Add this line
-        res.status(400).json({ success: false, message: error.message });
-    }
-};
+    });
 
-exports.deleteMe = async (req, res) => {
-    try {
-        const user = await User.findByIdAndDelete(req.user._id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.json({ success: true, message: 'User deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-}
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
+    const [users, totalUsers] = await Promise.all([
+        User.find(filter).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        User.countDocuments(filter)
+    ]);
 
-// Get all users
-exports.getAllUsers = async (req, res) => {
-    try {
-        let filter = {};
-        if (req.query.email) filter.email = req.query.email;
-        if (req.query.phoneNumber) filter.phoneNumber = req.query.phoneNumber;
-        if (req.query.userRole) filter.userRole = req.query.userRole;
-        if (req.query.verified) filter.verified = req.query.verified;
-        if (req.query.name) filter.name = req.query.name;
-        if (req.query.dateOfBirth) filter.dateOfBirth = req.query.dateOfBirth;
-        if (req.query.gender) filter.gender = req.query.gender;
-        console.log('Filter:', filter);
-        const users = await User.find(filter).select('+password');
-        console.log('Users found:', users.length); // Debug log
-        res.status(200).json({ success: true, data: users });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+    res.status(200).json({
+        success: true,
+        count: users.length,
+        totalUsers,
+        totalPages: Math.ceil(totalUsers / limit),
+        currentPage: page,
+        data: users
+    });
+});
 
-// Get user by ID
-exports.getUserById = async (req, res) => {
-    const userId = req.params.id;
-    try {
-        const user = await User.findById(userId).select('+password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.status(200).json({ success: true, data: user });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+exports.getUserById = catchAsync(async (req, res, next) => {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
     }
-};
+    res.status(200).json({ success: true, data: user });
+});
 
+exports.createUser = catchAsync(async (req, res, next) => {
+    const filteredBody = filterObject(req.body, 'name', 'email', 'password', 'phoneNumber', 'gender', 'dateOfBirth', 'userRole', 'verified');
+    
+    if (filteredBody.password) {
+        filteredBody.password = await hashPassword(filteredBody.password);
+    }
+    
+    const newUser = await User.create(filteredBody);
+    newUser.password = undefined;
 
+    // THAY ĐỔI: Thêm message
+    res.status(201).json({ 
+        success: true, 
+        message: 'Tạo người dùng mới thành công!',
+        data: newUser 
+    });
+});
 
-// Create user
-exports.createUser = async (req, res) => {
-    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole, verified } = req.body;
-    if (!email || !password || !phoneNumber) {
-        return res.status(400).json({ success: false, message: 'Email, password, and phone number are required' });
-    }
-    try {
-        const hashedPassword = await hashPassword(password);
-        const newUser = new User({
-            name,
-            email,
-            password: hashedPassword,
-            phoneNumber,
-            dateOfBirth,
-            gender,
-            userRole: userRole || 'user',
-            verified: verified || false,
-        });
-        await newUser.save();
-        res.status(201).json({ success: true, data: newUser });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+exports.updateUser = catchAsync(async (req, res, next) => {
+    const updateData = filterObject(req.body, 'name', 'email', 'phoneNumber', 'gender', 'dateOfBirth', 'userRole', 'verified');
 
-// Update user
-exports.updateUser = async (req, res) => {
-    const userId = req.params.id;
-    const { name, email, password, phoneNumber, gender, dateOfBirth, userRole , verified } = req.body;
-    if (!email || !password || !phoneNumber) {
-        return res.status(400).json({ success: false, message: 'Email, password, and phone number are required' });
+    if (req.body.password) {
+        updateData.password = await hashPassword(req.body.password);
     }
-    try {
-        const hashedPassword = await hashPassword(password);
-        
-        const user = await User.findByIdAndUpdate(
-            userId,
-            {
-                name,
-                email,
-                password: hashedPassword,
-                phoneNumber,
-                dateOfBirth,
-                gender,
-                userRole,
-                verified,
-            },
-            { new: true, runValidators: true }
-        ).select('+password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.status(200).json({ success: true, data: user });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
 
-// Delete user
-exports.deleteUser = async (req, res) => {
-    const userId = req.params.id;
-    try {
-        const user = await User.findByIdAndDelete(userId);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.status(200).json({ success: true, message: 'User deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+    const user = await User.findByIdAndUpdate(req.params.id, updateData, {
+        new: true,
+        runValidators: true
+    }).select('-password');
+
+    if (!user) {
+        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
     }
-};
+    
+    // THAY ĐỔI: Thêm message
+    res.status(200).json({ 
+        success: true, 
+        message: `Cập nhật thông tin người dùng thành công.`,
+        data: user 
+    });
+});
+
+exports.deleteUser = catchAsync(async (req, res, next) => {
+    if (String(req.user._id) === req.params.id) {
+        return next(new AppError('Admin không thể tự xóa tài khoản qua API này.', 400));
+    }
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+        return next(new AppError('Không tìm thấy người dùng với ID này', 404));
+    }
+
+    // THAY ĐỔI: Chuyển sang 200 và thêm message
+    res.status(200).json({
+        success: true,
+        message: 'Xóa người dùng thành công.',
+    });
+});

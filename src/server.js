@@ -18,6 +18,9 @@ const tripRouter = require('./routers/tripRouter');
 const userRouter = require('./routers/userRouter');
 const vehicleRouter = require('./routers/vehicleRouter');
 
+const AppError = require('./utils/appError'); 
+
+
 
 app.use(cors());
 app.use(helmet());
@@ -47,9 +50,28 @@ app.use('/api/trips', tripRouter);
 app.use('/api/users', userRouter);
 app.use('/api/vehicles', vehicleRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the API' });
+    res.json({ message: 'Welcome to the API' });
 });
+
+// Xử lý các route không tồn tại
+app.all('*', (req, res) => {
+    res.status(404).send('Route not found')
+})
+
+// MIDDLEWARE XỬ LÝ LỖI TOÀN CỤC (THAY THẾ HOẶC THÊM MỚI)
+app.use((err, req, res, next) => {
+    err.statusCode = err.statusCode || 500;
+    err.status = err.status || 'error';
+
+    res.status(err.statusCode).json({
+        status: err.status,
+        message: err.message
+    });
+});
+
+
 
 app.listen(process.env.PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${process.env.PORT}`);

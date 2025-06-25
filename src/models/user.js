@@ -20,6 +20,7 @@ const userSchema = new Schema({
     },
     name: {
         type: String,
+        index: true,
     },
     dateOfBirth: {
         type: Date,
@@ -36,10 +37,12 @@ const userSchema = new Schema({
         type: String,
         enum: ['admin', 'customer','provider'],
         default: 'customer',
+        index: true,
     },
     verified: {
         type: Boolean,
         default: false,
+        index: true,
     },
     verificationCode: {
         type: String,
@@ -60,4 +63,5 @@ const userSchema = new Schema({
     }, { timestamps: true });
 
 
+userSchema.index({ userRole: 1, createAt: -1 });
 module.exports = model('User', userSchema);
