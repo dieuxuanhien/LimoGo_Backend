@@ -8,7 +8,8 @@ const {
     validateCreateUser, 
     validateUpdateUser, 
     validateUpdateMe,
-    validateUpdateMyPassword 
+    validateUpdateMyPassword,
+    validateUserIdInParams
 } = require('../validators/userValidator');
 
 const { handleValidationErrors } = require('../middlewares/validationHandler');
@@ -51,6 +52,8 @@ router.get(
     '/:id', 
     loggedin, 
     ensureRole(['admin']), 
+    validateUserIdInParams,
+    handleValidationErrors,
     userController.getUserById
 );
 
@@ -67,6 +70,7 @@ router.patch(
     '/:id', 
     loggedin, 
     ensureRole(['admin']),
+    validateUserIdInParams,
     validateUpdateUser,
     handleValidationErrors, 
     userController.updateUser
@@ -76,6 +80,8 @@ router.delete(
     '/:id', 
     loggedin, 
     ensureRole(['admin']), 
+    validateUserIdInParams,
+    handleValidationErrors,
     userController.deleteUser
 );
 

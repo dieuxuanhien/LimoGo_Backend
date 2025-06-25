@@ -1,5 +1,21 @@
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const User = require('../models/user');
+
+
+// === VALIDATOR MỚI ĐỂ KIỂM TRA ID TRÊN PARAMS ===
+exports.validateUserIdInParams = [
+    param('id')
+        .isMongoId().withMessage('ID người dùng không hợp lệ.')
+        .custom(async (id, { req }) => {
+            const user = await User.findById(id);
+            if (!user) {
+                return Promise.reject('Không tìm thấy người dùng với ID này.');
+            }
+            // Gắn user tìm được vào request để controller có thể tái sử dụng
+            req.foundUser = user; 
+            return true;
+        })
+];
 
 // === VALIDATION CHO ADMIN TẠO USER ===
 exports.validateCreateUser = [
