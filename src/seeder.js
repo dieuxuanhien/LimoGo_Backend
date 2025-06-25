@@ -145,10 +145,21 @@ const seedData = async () => {
             arrivalTime: new Date(new Date().getTime() + 10.5 * 24 * 60 * 60 * 1000), 
             price: 400000 
         });
+        const tripForReview = new Trip({ 
+            route: routeHCM_NT._id, 
+            vehicle: vehicleA2_for_trip._id, 
+            driver: driverFuta2._id, 
+            provider: futaProvider._id, 
+            status: 'completed', // <-- Sửa thành 'completed'
+            departureTime: new Date('2024-06-20T07:00:00Z'), // <-- Đổi thành ngày trong quá khứ
+            arrivalTime: new Date('2024-06-20T15:00:00Z'),   // <-- Đổi thành ngày trong quá khứ
+            price: 350000 
+        });
         await trip1.save();
         await trip2.save();
         await tripForDeletionTest.save(); 
-        console.log(`3 Trips đã được tạo (và các Tickets tương ứng).`);
+        await tripForReview.save();
+        console.log(`4 Trips đã được tạo (và các Tickets tương ứng).`);
         
         console.log('--- Sample data created successfully!');
 

@@ -1,20 +1,44 @@
 const express = require('express');
 const router = express.Router();
-
-
 const reviewController = require('../controllers/reviewController');
 const { loggedin, ensureRole } = require('../middlewares/identification');
 
+// Import các validator
+const { validateCreateReview, validateUpdateReview, validateReviewIdInParams } = require('../validators/reviewValidator');
+const { handleValidationErrors } = require('../middlewares/validationHandler');
 
+// Tạo một review mới
+router.post(
+    '/',
+    loggedin, ensureRole(['customer']),
+    validateCreateReview, 
+    handleValidationErrors,
+    reviewController.createReview
+);
 
-router.get('/', loggedin, ensureRole(['admin']), reviewController.getAllReviews);
-router.get('/:id', loggedin, reviewController.getReviewById);
-router.post('/', loggedin, ensureRole(['user', 'admin']), reviewController.createReview);
-router.patch('/:id', loggedin, ensureRole(['user', 'admin']), reviewController.updateReview);
-router.delete('/:id', loggedin, ensureRole(['user', 'admin']), reviewController.deleteReview);
+// Lấy tất cả review (chỉ dành cho Admin)
+router.get(
+    '/',
+    loggedin, ensureRole(['admin']),
+    reviewController.getAllReviews
+);
 
+// Cập nhật review của chính mình
+router.patch(
+    '/:reviewId',
+    loggedin, ensureRole(['customer']),
+    validateUpdateReview, // Cần tạo validator này
+    handleValidationErrors,
+    reviewController.updateReview
+);
 
-// Get reviews by trip ID
-router.get('/trip/:tripId', loggedin, reviewController.getReviewsByTripId);
-router.get('/user/:userId', loggedin, reviewController.getReviewsByUserId);
+// Xóa một review (chủ sở hữu hoặc admin)
+router.delete(
+    '/:reviewId',
+    loggedin,
+    validateReviewIdInParams,
+    handleValidationErrors,
+    reviewController.deleteReview
+);
+
 module.exports = router;

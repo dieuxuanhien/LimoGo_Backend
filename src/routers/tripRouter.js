@@ -37,6 +37,12 @@ router.get(
     tripController.getTicketsForTrip
 );
 
+router.get(
+    '/:tripId/reviews',
+    validateIdInParams,
+    handleValidationErrors,
+    tripController.getReviewsForTrip
+);
 
 
 // === CÁC ROUTE CẦN XÁC THỰC VÀ PHÂN QUYỀN ===
@@ -75,7 +81,7 @@ router.post(
 
 // Update trip
 router.patch(
-    '/tripId', 
+    '/:tripId', 
     loggedin, 
     ensureRole(['admin', 'provider']), 
     isProvider,

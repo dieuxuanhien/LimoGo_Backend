@@ -25,14 +25,8 @@ exports.getMe = catchAsync(async (req, res, next) => {
     });
 });
 
-exports.updateMe = catchAsync(async (req, res, next) => {
-    const updateData = {};
-    const allowedFields = ['name', 'dateOfBirth', 'gender', 'phoneNumber'];
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined && req.body[field] !== null) {
-            updateData[field] = req.body[field];
-        }
-    });
+exports.updateMe = catchAsync(async (req, res, next) => {    
+    const updateData = filterObject(req.body, 'name', 'dateOfBirth', 'gender', 'phoneNumber');
 
     if (Object.keys(updateData).length === 0) {
         return next(new AppError('Không có trường dữ liệu hợp lệ nào được cung cấp để cập nhật.', 400));
@@ -42,10 +36,6 @@ exports.updateMe = catchAsync(async (req, res, next) => {
         new: true,
         runValidators: true
     }).select('-password');
-
-    if (!updatedUser) {
-        return next(new AppError('Không tìm thấy người dùng tương ứng với token này. Có thể tài khoản đã bị xóa.', 404));
-    }
 
     // THAY ĐỔI: Thêm message
     res.status(200).json({

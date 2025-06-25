@@ -6,6 +6,8 @@ const Vehicle = require('../models/vehicle');
 const Route = require('../models/route');
 const Station = require('../models/station');
 const Ticket = require('../models/ticket');
+const Review = require('../models/review'); 
+
 
 
 
@@ -320,6 +322,35 @@ const getTicketsForTrip = async (req, res) => {
     }
 };
 
+const getReviewsForTrip = async (req, res) => {
+    try {
+        const { tripId } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const [reviews, totalCount] = await Promise.all([
+            Review.find({ trip: tripId })
+                .populate('user', 'name') // Chỉ lấy tên của người dùng
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Review.countDocuments({ trip: tripId })
+        ]);
+
+        res.status(200).json({
+            success: true,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            currentPage: page,
+            data: reviews
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+};
+
 
 module.exports = {
     createTrip,
@@ -329,5 +360,6 @@ module.exports = {
     deleteTrip,
     searchTripsByCity,
     getTicketsForTrip,
-    getFeaturedTrips
+    getFeaturedTrips,
+    getReviewsForTrip
 };
