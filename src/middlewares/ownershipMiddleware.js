@@ -1,70 +1,83 @@
+const mongoose = require('mongoose');
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
+
+// --- Import các Model cần thiết ---
 const Driver = require('../models/driver');
 const Vehicle = require('../models/vehicle');
-const mongoose = require('mongoose');
+const Station = require('../models/station');
+const Route = require('../models/route');
 
+// --- HÀM CŨ: checkDriverOwnership (không đổi) ---
+exports.checkDriverOwnership = catchAsync(async (req, res, next) => {
+    const driver = await Driver.findById(req.params.id);
 
-exports.checkDriverOwnership = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const driver = await Driver.findById(id);
-
-        // 1. Kiểm tra tài xế có tồn tại không
-        if (!driver) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy tài xế.' });
-        }
-
-        // 2. Nếu là provider, kiểm tra quyền sở hữu
-        // Middleware isProvider đã chạy trước đó và cung cấp req.provider
-        if (req.user.role === 'provider' && String(driver.provider) !== String(req.provider._id)) {
-            return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập tài nguyên này.' });
-        }
-
-        // 3. Gắn driver vào request để controller có thể sử dụng mà không cần tìm lại
-        req.driver = driver;
-        next(); // Tất cả hợp lệ, chuyển sang middleware/controller tiếp theo
-
-    } catch (error) {
-        // Xử lý trường hợp ID không hợp lệ (ví dụ: ID quá ngắn hoặc sai định dạng)
-        if (error.name === 'CastError') {
-            return res.status(400).json({ success: false, message: `ID tài xế không hợp lệ: ${req.params.id}` });
-        }
-        // Các lỗi server khác
-        res.status(500).json({ success: false, message: 'Lỗi máy chủ trong quá trình xác thực quyền sở hữu.', error: error.message });
+    if (!driver) {
+        return next(new AppError('Không tìm thấy tài xế.', 404));
     }
-};
 
-
-exports.checkVehicleOwnership = async (req, res, next) => {
-    try {
-        const vehicleId = req.params.id;
-
-        if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
-            return res.status(400).json({ success: false, message: 'ID xe không hợp lệ.' });
-        }
-
-        const vehicle = await Vehicle.findById(vehicleId);
-
-        if (!vehicle) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy xe này.' });
-        }
-
-        // Nếu là admin, luôn có quyền truy cập
-        if (req.user.role === 'admin') {
-            req.vehicle = vehicle; // Gắn vehicle vào request để controller dùng lại
-            return next();
-        }
-
-        // Nếu là provider, kiểm tra quyền sở hữu
-        if (req.user.role === 'provider') {
-            if (String(vehicle.provider) !== String(req.provider._id)) {
-                return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập vào tài nguyên này.' });
-            }
-        }
-        
-        req.vehicle = vehicle; // Gắn vehicle vào request để controller dùng lại
-        next();
-
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'Lỗi server khi kiểm tra quyền sở hữu.', error: err.message });
+    if (req.user.role === 'provider' && String(driver.provider) !== String(req.provider._id)) {
+        return next(new AppError('Bạn không có quyền truy cập tài nguyên này.', 403));
     }
-};
+
+    req.driver = driver; // Gắn tài nguyên vào request
+    next();
+});
+
+// --- HÀM CŨ: checkVehicleOwnership (không đổi) ---
+exports.checkVehicleOwnership = catchAsync(async (req, res, next) => {
+    const vehicle = await Vehicle.findById(req.params.id);
+
+    if (!vehicle) {
+        return next(new AppError('Không tìm thấy xe này.', 404));
+    }
+
+    if (req.user.role === 'provider' && String(vehicle.provider) !== String(req.provider._id)) {
+        return next(new AppError('Bạn không có quyền truy cập vào tài nguyên này.', 403));
+    }
+    
+    req.vehicle = vehicle; // Gắn tài nguyên vào request
+    next();
+});
+
+// --- HÀM MỚI: checkStationOwnership ---
+exports.checkStationOwnership = catchAsync(async (req, res, next) => {
+    const station = await Station.findById(req.params.id);
+
+    if (!station) {
+        return next(new AppError('Không tìm thấy trạm/bến xe.', 404));
+    }
+
+    // GIẢI THÍCH: Middleware này dùng cho các hành động GHI (update/delete).
+    // Provider chỉ được phép thực hiện trên các 'pickup_point' mà họ sở hữu.
+    if (req.user.role === 'provider') {
+        if (station.type !== 'pickup_point' || !station.ownerProvider || String(station.ownerProvider) !== String(req.provider._id)) {
+            return next(new AppError('Bạn không có quyền chỉnh sửa tài nguyên này.', 403));
+        }
+    }
+    // Admin có toàn quyền.
+
+    req.station = station; // Gắn tài nguyên vào request để controller dùng lại
+    next();
+});
+
+// --- HÀM MỚI: checkRouteOwnership ---
+exports.checkRouteOwnership = catchAsync(async (req, res, next) => {
+    const route = await Route.findById(req.params.id);
+
+    if (!route) {
+        return next(new AppError('Không tìm thấy tuyến đường.', 404));
+    }
+
+    // GIẢI THÍCH: Provider chỉ được phép GHI (update/delete) trên các route mà họ sở hữu.
+    // Họ không được sửa các route của hệ thống (ownerProvider == null).
+    if (req.user.role === 'provider') {
+        if (!route.ownerProvider || String(route.ownerProvider) !== String(req.provider._id)) {
+             return next(new AppError('Bạn không có quyền chỉnh sửa tài nguyên này.', 403));
+        }
+    }
+    // Admin có toàn quyền.
+
+    req.route = route; // Gắn tài nguyên vào request để controller dùng lại
+    next();
+});
