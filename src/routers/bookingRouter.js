@@ -24,6 +24,10 @@ router.get(
     bookingController.handleIpnResponse
 );
 ////////////////////
+router.get(
+    '/vnpay_return',
+    bookingController.handleReturnResponse
+)
 
 
 
