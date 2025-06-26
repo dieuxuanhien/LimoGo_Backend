@@ -1,80 +1,102 @@
 const Station = require('../models/station');
+const Route = require('../models/route'); // Import để kiểm tra sự phụ thuộc
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
+
+const { filterObject } = require('../utils/helpers'); 
 
 
-// Get all stations (all roles)
-exports.getAllStations = async (req, res) => {
-    try {
-        const stations = await Station.find();
-        res.status(200).json({ success: true, data: stations });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+// Lấy danh sách các station với logic phân quyền
+exports.getAllStations = catchAsync(async (req, res, next) => {
+    let filter = {};
+
+    // GIẢI THÍCH: Logic phân quyền truy cập dữ liệu
+    // Nếu là provider, họ chỉ thấy các bến xe chính VÀ các điểm đón của chính họ.
+    if (req.user.role === 'provider') {
+        filter = {
+            $or: [
+                { type: 'main_station' },
+                { ownerProvider: req.provider._id }
+            ]
+        };
     }
-};
+    // Nếu là admin, filter sẽ là {} và họ thấy tất cả.
+    // Nếu là customer, họ cũng thấy tất cả (để phục vụ tìm kiếm).
 
-// Get station by ID (all roles)
-exports.getStationById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const station = await Station.findById(id);
-        if (!station) {
-            return res.status(404).json({ success: false, message: 'Station not found' });
-        }
-        res.status(200).json({ success: true, data: station });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+    const stations = await Station.find(filter)
+        .select('name city address type ownerProvider')
+        .populate('ownerProvider', 'name');
 
-// Create a new station (admin only)
-exports.createStation = async (req, res) => {
-    const { name, city, country, coordinates } = req.body;
-    if (!name || !city) {
-        return res.status(400).json({ success: false, message: 'Name and city are required' });
-    }
-    try {
-        const exists = await Station.findOne({ name });
-        if (exists) {
-            return res.status(409).json({ success: false, message: 'Station name already exists' });
-        }
-        const newStation = new Station({
-            name,
-            city,
-            country: country || 'VietNam',
-            coordinates
-        });
-        await newStation.save();
-        res.status(201).json({ success: true, data: newStation });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+    res.status(200).json({
+        success: true,
+        count: stations.length,
+        data: stations
+    });
+});
 
-// Update an existing station (admin only)
-exports.updateStation = async (req, res) => {
-    const { id } = req.params;
-    const updates = req.body;
-    try {
-        const updatedStation = await Station.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
-        if (!updatedStation) {
-            return res.status(404).json({ success: false, message: 'Station not found' });
-        }
-        res.status(200).json({ success: true, data: updatedStation });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+// Lấy chi tiết một station
+exports.getStationById = catchAsync(async (req, res, next) => {
+    const station = await Station.findById(req.params.id);
 
-// Delete a station (admin only)
-exports.deleteStation = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const deletedStation = await Station.findByIdAndDelete(id);
-        if (!deletedStation) {
-            return res.status(404).json({ success: false, message: 'Station not found' });
-        }
-        res.status(200).json({ success: true, message: 'Station deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+    if (!station) {
+        return next(new AppError('Không tìm thấy trạm/bến xe với ID này', 404));
     }
-};
 
+    res.status(200).json({ success: true, data: station });
+});
+
+// Tạo station mới với logic phân quyền
+exports.createStation = catchAsync(async (req, res, next) => {
+    
+    const filteredBody = filterObject(req.body, 'name', 'city', 'address', 'coordinates', 'type');
+
+    // GIẢI THÍCH: Tự động gán quyền sở hữu nếu người tạo là Provider
+    if (req.user.role === 'provider') {
+        // Provider chỉ được tạo 'pickup_point' và sẽ là chủ sở hữu
+        filteredBody.type = 'pickup_point';
+        filteredBody.ownerProvider = req.provider._id;
+    }
+
+    const newStation = await Station.create(filteredBody);
+
+    res.status(201).json({
+        success: true,
+        message: 'Tạo trạm/bến xe thành công!',
+        data: newStation
+    });
+});
+
+// Cập nhật station với kiểm tra quyền sở hữu
+exports.updateStation = catchAsync(async (req, res, next) => {
+    // Middleware checkStationOwnership đã tìm và xác thực quyền,
+    // tài nguyên được gắn vào req.station.
+    const station = req.station; 
+    
+    const filteredBody = filterObject(req.body, 'name', 'city', 'address', 'coordinates');
+    
+    // Cập nhật các trường được phép
+    Object.assign(station, filteredBody);
+    await station.save({ validateModifiedOnly: true });
+
+    res.status(200).json({
+        success: true,
+        message: 'Cập nhật thành công!',
+        data: station
+    });
+});
+
+// Xóa station với kiểm tra quyền sở hữu và sự phụ thuộc
+exports.deleteStation = catchAsync(async (req, res, next) => {
+    // Middleware đã xác thực quyền, req.station đã có sẵn.
+    const stationId = req.station._id;
+
+    // Kiểm tra sự phụ thuộc
+    const existingRoute = await Route.findOne({ $or: [{ originStation: stationId }, { destinationStation: stationId }] });
+    if (existingRoute) {
+        return next(new AppError('Không thể xóa bến xe này vì nó đang được sử dụng trong một tuyến đường. Vui lòng xóa tuyến đường liên quan trước.', 400));
+    }
+
+    await Station.findByIdAndDelete(stationId);
+
+    res.status(200).json({ success: true, message: 'Xóa trạm/bến xe thành công.' });
+});
