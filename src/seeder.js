@@ -75,39 +75,74 @@ const seedData = async () => {
         console.log(`${providers.length} Providers đã được tạo.`);
 
 
-        // --- 3. Tạo Stations ---
-        const stations = await Station.insertMany([
-            { name: 'Bến xe Miền Đông', city: 'Hồ Chí Minh' },
-            { name: 'Bến xe An Sương', city: 'Hồ Chí Minh' },
-            { name: 'Bến xe Phía Nam Nha Trang', city: 'Nha Trang' },
-            { name: 'Bến xe Liên Tỉnh Đà Lạt', city: 'Đà Lạt' }
+        // === BƯỚC 3: TẠO STATIONS (ĐÃ CẬP NHẬT) ===
+        console.log('--- Creating Stations (Hybrid Model)...');
+        // A. Tạo các Bến xe chính thức (do Admin quản lý)
+        const mainStations = await Station.insertMany([
+            { 
+                name: 'Bến xe Miền Đông', 
+                city: 'Hồ Chí Minh', 
+                address: 'Quốc lộ 13, Phường 26, Bình Thạnh, Thành phố Hồ Chí Minh',
+                type: 'main_station' // Loại: Bến xe chính
+            },
+            { 
+                name: 'Bến xe Phía Nam Nha Trang', 
+                city: 'Nha Trang', 
+                address: 'ĐL Võ Nguyên Giáp, Vĩnh Trung, Nha Trang, Khánh Hòa',
+                type: 'main_station' 
+            },
+            { 
+                name: 'Bến xe Liên Tỉnh Đà Lạt', 
+                city: 'Đà Lạt', 
+                address: '1 Tô Hiến Thành, Phường 3, Thành phố Đà Lạt, Lâm Đồng',
+                type: 'main_station' 
+            }
         ]);
-        const [hcmStation1, hcmStation2, nhaTrangStation, daLatStation] = stations;
-        console.log(`${stations.length} Stations đã được tạo.`);
-        
-        // --- 4. Tạo Drivers ---
-        const drivers = await Driver.insertMany([
-            { name: 'Nguyễn Văn A', age: 35, photo: 'url_to_photo_a.jpg', provider: futaProvider._id, currentStation: hcmStation1._id, status: 'available' },
-            { name: 'Lê Thị B', age: 38, photo: 'uploads/default_b.jpg', provider: futaProvider._id, currentStation: daLatStation._id, status: 'assigned' },
-            { name: 'Trần Thị C', age: 40, photo: 'url_to_photo_c.jpg', provider: thanhBuoiProvider._id, currentStation: hcmStation2._id, status: 'available' }
+        const [mainStationHCM, mainStationNT, mainStationDL] = mainStations;
+        console.log(`${mainStations.length} Main Stations đã được tạo.`);
+
+        // B. Tạo các Điểm đón/trả riêng (do Provider sở hữu)
+        const pickupPoints = await Station.insertMany([
+            {
+                name: 'Văn phòng Phương Trang - Lê Hồng Phong',
+                city: 'Hồ Chí Minh',
+                address: '202-204 Lê Hồng Phong, Phường 4, Quận 5, Thành phố Hồ Chí Minh',
+                type: 'pickup_point', // Loại: Điểm đón riêng
+                ownerProvider: futaProvider._id // Thuộc sở hữu của Phương Trang
+            },
+            {
+                name: 'Văn phòng Thành Bưởi - Lê Hồng Phong',
+                city: 'Hồ Chí Minh',
+                address: '266-268 Lê Hồng Phong, Phường 4, Quận 5, Thành phố Hồ Chí Minh',
+                type: 'pickup_point',
+                ownerProvider: thanhBuoiProvider._id // Thuộc sở hữu của Thành Bưởi
+            }
         ]);
-        const [driverFuta1, driverFuta2, driverThanhBuoi] = drivers;
-        console.log(`${drivers.length} Drivers đã được tạo.`);
+        const [futaPickupPoint, thanhBuoiPickupPoint] = pickupPoints;
+        console.log(`${pickupPoints.length} Pickup Points đã được tạo.`);
+
+         // --- 4. Tạo Drivers (cập nhật currentStation cho đúng) ---
+         const drivers = await Driver.insertMany([
+         { name: 'Nguyễn Văn A', age: 35, photo: '...', provider: futaProvider._id, currentStation: mainStationHCM._id },
+         { name: 'Trần Thị C', age: 40, photo: '...', provider: thanhBuoiProvider._id, currentStation: mainStationDL._id }
+        ]);
+         const [driverFuta, driverThanhBuoi] = drivers;
+         console.log(`${drivers.length} Drivers đã được tạo.`);
 
 
         // --- 5. Tạo Vehicles (ĐÃ SỬA ĐỔI) ---
         console.log('--- Creating vehicles with provider links...');
         // Xe để test xóa thành công (thuộc Phương Trang)
         const vehicleA1_ok_to_delete = await Vehicle.create(
-            { type: 'Giường nằm 40 chỗ', licensePlate: '51A-OKDELETE', capacity: 40, currentStation: hcmStation1._id, provider: futaProvider._id }
+            { type: 'Giường nằm 40 chỗ', licensePlate: '51A-OKDELETE', capacity: 40, currentStation: mainStationHCM._id, provider: futaProvider._id }
         );
         // Xe để test xóa thất bại (thuộc Phương Trang)
         const vehicleA2_for_trip = await Vehicle.create(
-            { type: 'Limousine 29 chỗ', licensePlate: '51B-FORTRIP', capacity: 29, currentStation: hcmStation2._id, provider: futaProvider._id }
+            { type: 'Limousine 29 chỗ', licensePlate: '51B-FORTRIP', capacity: 29, currentStation: futaPickupPoint._id, provider: futaProvider._id }
         );
         // Xe của nhà xe khác để test cấm truy cập (thuộc Thành Bưởi)
         const vehicleB1_foreign = await Vehicle.create(
-            { type: 'Limousine 9 chỗ', licensePlate: '51C-FOREIGN', capacity: 9, currentStation: hcmStation2._id, provider: thanhBuoiProvider._id }
+            { type: 'Limousine 9 chỗ', licensePlate: '51C-FOREIGN', capacity: 9, currentStation: thanhBuoiPickupPoint._id, provider: thanhBuoiProvider._id }
         );
 
         // Tạo thêm 12 xe cho Phương Trang để test phân trang
@@ -116,7 +151,7 @@ const seedData = async () => {
                 type: 'Xe Test Phân Trang',
                 licensePlate: `51P-PAGE${i.toString().padStart(2, '0')}`,
                 capacity: 30,
-                currentStation: hcmStation1._id,
+                currentStation: mainStationHCM._id,
                 provider: futaProvider._id
             });
         }
@@ -124,22 +159,24 @@ const seedData = async () => {
         
         
 
-        // --- 6. Tạo Routes ---
+        // --- 6. Tạo Routes (cập nhật để dùng các station mới) ---
         const routes = await Route.insertMany([
-            { originStation: hcmStation1._id, destinationStation: nhaTrangStation._id, distanceKm: 430, estimatedDurationMin: 480 },
-            { originStation: hcmStation2._id, destinationStation: daLatStation._id, distanceKm: 310, estimatedDurationMin: 420 }
+            // Tuyến chính: Bến xe <-> Bến xe
+            { originStation: mainStationHCM._id, destinationStation: mainStationDL._id },
+            // Tuyến lai: Bến xe chính <-> Điểm đón riêng
+            { originStation: mainStationNT._id, destinationStation: futaPickupPoint._id }
         ]);
-        const [routeHCM_NT, routeHCM_DL] = routes;
+        const [routeHCM_DL, routeHCM_NT] = routes;
         console.log(`${routes.length} Routes đã được tạo.`);
 
 
         // --- 7. Tạo Trips ---
-        const trip1 = new Trip({ route: routeHCM_NT._id, vehicle: vehicleA1_ok_to_delete._id, driver: driverFuta1._id, provider: futaProvider._id, departureTime: new Date('2025-09-15T07:00:00'), arrivalTime: new Date('2025-09-15T15:00:00'), price: 350000 });
+        const trip1 = new Trip({ route: routeHCM_NT._id, vehicle: vehicleA1_ok_to_delete._id, driver: driverFuta._id, provider: futaProvider._id, departureTime: new Date('2025-09-15T07:00:00'), arrivalTime: new Date('2025-09-15T15:00:00'), price: 350000 });
         const trip2 = new Trip({ route: routeHCM_DL._id, vehicle: vehicleB1_foreign._id, driver: driverThanhBuoi._id, provider: thanhBuoiProvider._id, departureTime: new Date('2025-09-16T09:30:00'), arrivalTime: new Date('2025-09-16T16:30:00'), price: 400000 });
         const tripForDeletionTest = new Trip({ 
             route: routeHCM_DL._id, 
             vehicle: vehicleA2_for_trip._id, 
-            driver: driverFuta1._id, 
+            driver: driverFuta._id, 
             provider: futaProvider._id, 
             departureTime: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000), // 10 ngày sau
             arrivalTime: new Date(new Date().getTime() + 10.5 * 24 * 60 * 60 * 1000), 
@@ -148,7 +185,7 @@ const seedData = async () => {
         const tripForReview = new Trip({ 
             route: routeHCM_NT._id, 
             vehicle: vehicleA2_for_trip._id, 
-            driver: driverFuta2._id, 
+            driver: driverFuta._id, 
             provider: futaProvider._id, 
             status: 'completed', // <-- Sửa thành 'completed'
             departureTime: new Date('2024-06-20T07:00:00Z'), // <-- Đổi thành ngày trong quá khứ

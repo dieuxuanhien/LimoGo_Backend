@@ -117,7 +117,7 @@ setInterval(async () => {
         // Cập nhật trạng thái các đơn hàng thành 'expired'
         await Booking.updateMany(
           { _id: { $in: expiredBookings.map(b => b._id) } },
-          { $set: { status: 'expired' } }
+          { $set: { paymentStatus: 'expired' } }
         );
 
         console.log(`[BookingExpiry] Expired ${expiredBookings.length} pending bookings.`);

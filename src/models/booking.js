@@ -7,26 +7,34 @@ const bookingSchema = new Schema({
     provider: { type: Schema.Types.ObjectId, ref: 'Provider', required: true },
     totalPrice: { type: Number, required: true },
     
-    // THÊM TRƯỜNG NÀY: Để theo dõi vòng đời của đơn hàng
-    status: {
+    // Phương thức thanh toán người dùng đã chọn
+    paymentMethod: {
         type: String,
-        enum: ['pending_approval', 'confirmed', 'cancelled', 'expired'],
+        enum: ['cash', 'bank_transfer'],
+        required: true
+    },
+
+    // Trạng thái phê duyệt của nhà xe
+    approvalStatus: {
+        type: String,
+        enum: ['pending_approval', 'confirmed_by_provider', 'cancelled'],
         default: 'pending_approval'
     },
 
-    // Trạng thái thanh toán, sẽ hữu ích cho việc tích hợp thanh toán sau này
+    // Trạng thái thanh toán của đơn hàng
     paymentStatus: { 
         type: String, 
         enum: ['pending', 'completed', 'failed', 'expired'], 
         default: 'pending' 
     },
-    // Thời điểm đơn hàng bị coi là hết hạn nếu không thanh toán
+    
+    // Hạn chót để nhà xe duyệt hoặc khách hàng thanh toán
     bookingExpiresAt: { type: Date }
-}, { timestamps: true });
+}, { 
+    timestamps: true 
+});
 
-bookingSchema.index({ provider: 1, status: 1, createdAt: -1 });
-
+bookingSchema.index({ provider: 1, approvalStatus: 1, createdAt: -1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
-
 
 module.exports = model('Booking', bookingSchema);
