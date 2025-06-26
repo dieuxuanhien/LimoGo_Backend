@@ -13,9 +13,13 @@ exports.validateConfirmBooking = [
         .notEmpty().withMessage('ticketIds là bắt buộc.')
         .isArray({ min: 1 }).withMessage('ticketIds phải là một mảng chứa ít nhất 1 vé.'),
     
-    // Dấu '*' là một wildcard, kiểm tra cho mỗi phần tử bên trong mảng ticketIds
     body('ticketIds.*')
-        .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.')
+        .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.'),
+
+    // THÊM QUY TẮC MỚI
+    body('paymentMethod')
+        .notEmpty().withMessage('Phương thức thanh toán là bắt buộc.')
+        .isIn(['cash', 'bank_transfer']).withMessage('Phương thức thanh toán không hợp lệ.')
 ];
 
 

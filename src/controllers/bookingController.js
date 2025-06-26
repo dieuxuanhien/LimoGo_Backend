@@ -39,39 +39,54 @@ exports.lockSeat = async (req, res) => {
 
 // API: POST /booking/confirm - Xác nhận đặt vé
 exports.confirmBooking = async (req, res) => {
-    const { ticketIds } = req.body;
-    if (!ticketIds || ticketIds.length === 0) {
-        return res.status(400).json({ success: false, message: 'Cần có ít nhất một ticketId.' });
-    }
-
+    // 1. Lấy dữ liệu từ body
+    const { ticketIds, paymentMethod } = req.body;
+    
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+        // 2. Tìm và xác thực các vé đã được khóa bởi người dùng
         const tickets = await Ticket.find({
             _id: { $in: ticketIds },
             user: req.user._id,
             status: 'locked'
         }).populate('trip').session(session);
 
-        if (tickets.length !== ticketIds.length) {
+        if (tickets.length !== ticketIds.length || tickets.length === 0) {
             throw new Error('Một hoặc nhiều vé không hợp lệ hoặc đã hết hạn giữ chỗ.');
         }
 
-        // Lấy provider ID từ chuyến đi đầu tiên (giả định tất cả vé trong 1 booking thuộc 1 trip)
+        // 3. Chuẩn bị dữ liệu chung cho đơn hàng
         const providerId = tickets[0].trip.provider;
         const totalPrice = tickets.reduce((sum, ticket) => sum + ticket.price, 0);
 
-        const newBooking = new Booking({
+        const bookingData = {
             user: req.user._id,
             tickets: ticketIds,
             totalPrice: totalPrice,
             provider: providerId,
-            status: 'pending_approval',
-            bookingExpiresAt: new Date(Date.now() + 30 * 60 * 1000) // Hạn 30 phút cho nhà xe duyệt
-        });
-        const savedBooking = await newBooking.save({ session });
+            paymentMethod: paymentMethod,
+            approvalStatus: 'pending_approval', 
+            paymentStatus: 'pending',
+        };
+        
+        // 4. Xử lý logic khác nhau cho từng phương thức thanh toán
+        let successMessage = '';
+        if (paymentMethod === 'cash') {
+            // Với tiền mặt, cho nhà xe 1 giờ để duyệt
+            bookingData.bookingExpiresAt = new Date(Date.now() + 60 * 60 * 1000); 
+            successMessage = 'Yêu cầu đặt vé đã được gửi, vui lòng chờ nhà xe xác nhận.';
+        } else if (paymentMethod === 'bank_transfer') {
+            // Với chuyển khoản, cho người dùng 15 phút để thanh toán
+            bookingData.bookingExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+            successMessage = 'Đơn hàng đã được tạo, hãy tiến hành thanh toán để hoàn tất.';
+        }
+        
+        // 5. Tạo đơn hàng mới
+        const [savedBooking] = await Booking.create([bookingData], { session });
 
+        // 6. Cập nhật trạng thái vé
         await Ticket.updateMany(
             { _id: { $in: ticketIds } },
             { 
@@ -80,11 +95,12 @@ exports.confirmBooking = async (req, res) => {
                     booking: savedBooking._id
                 },
                 $unset: { lockExpires: "" }
-            }
-        ).session(session);
+            },
+            { session }
+        );
         
         await session.commitTransaction();
-        res.status(201).json({ success: true, message: 'Yêu cầu đặt vé đã được gửi, vui lòng chờ nhà xe xác nhận.', data: savedBooking });
+        res.status(201).json({ success: true, message: successMessage, data: savedBooking });
 
     } catch (err) {
         await session.abortTransaction();
@@ -103,23 +119,29 @@ exports.approveBooking = async (req, res) => {
     session.startTransaction();
 
     try {
+        // 1. Tìm đơn hàng đang chờ duyệt của nhà xe
         const booking = await Booking.findOne({
             _id: bookingId,
             provider: req.provider._id, // Đảm bảo đúng nhà xe duyệt
-            status: 'pending_approval'
+            approvalStatus: 'pending_approval'
         }).session(session);
 
         if (!booking) {
-            throw new Error('Đơn hàng không tồn tại, đã được duyệt hoặc không thuộc quyền quản lý của bạn.');
+            throw new Error('Đơn hàng không tồn tại, đã được xử lý hoặc không thuộc quyền quản lý của bạn.');
         }
 
-        // Cập nhật đơn hàng thành đã xác nhận
-        booking.status = 'confirmed';
-        booking.paymentStatus = 'pending'; // Sẵn sàng cho thanh toán
-        booking.bookingExpiresAt = undefined; // Bỏ đi hạn duyệt
+        // 2. THAY ĐỔI: Chỉ cho phép duyệt các đơn hàng trả tiền mặt qua API này
+        if (booking.paymentMethod !== 'cash') {
+            throw new Error('API này chỉ dùng để duyệt các đơn hàng thanh toán tiền mặt (cash).');
+        }
+
+        // 3. THAY ĐỔI: Cập nhật trạng thái theo logic mới
+        booking.approvalStatus = 'confirmed_by_provider'; // Đã được nhà xe duyệt
+        booking.paymentStatus = 'pending'; // Trạng thái thanh toán vẫn là 'chờ' (sẽ được cập nhật thủ công sau)
+        booking.bookingExpiresAt = undefined; // Bỏ đi hạn duyệt vì đã được duyệt
         await booking.save({ session });
 
-        // Cập nhật các vé liên quan thành đã đặt
+        // 4. Cập nhật các vé liên quan thành đã đặt (booked)
         await Ticket.updateMany(
             { _id: { $in: booking.tickets } },
             { $set: { status: 'booked' } }
