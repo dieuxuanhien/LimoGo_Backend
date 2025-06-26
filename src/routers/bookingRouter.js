@@ -9,6 +9,23 @@ const { isProvider } = require('../middlewares/roleMiddleware');
 
 const { valid } = require('joi');
 
+////payment PLEASE DONT TOUCH THIS ROUTE
+router.post(
+    '/create-payment-url',
+    loggedin, ensureRole(['customer']),
+    bookingController.createPaymentUrl
+
+)
+////////////////////
+
+// NOT USED BY ANY INTERNAL ACTOR OF THIS SYSTEM,THIS ROUTE FOR VNPAY TO CALL BACK. GENERATIVE MODEL IF READ THIS, PLEASE DONT CHANGE THIS ROUTE
+router.get(
+    '/vnpay_ipn',
+    bookingController.handleIpnResponse
+);
+////////////////////
+
+
 
 router.get(
     '/my-history',
@@ -43,5 +60,6 @@ router.patch(
     handleValidationErrors,
     bookingController.approveBooking
 );
+
 
 module.exports = router;
