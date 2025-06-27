@@ -7,6 +7,16 @@ exports.validateLockSeat = [
         .isMongoId().withMessage('ticketId không hợp lệ.')
 ];
 
+// Quy tắc cho việc khóa nhiều ghế
+exports.validateLockMultipleSeats = [
+    body('ticketIds')
+        .notEmpty().withMessage('ticketIds là bắt buộc.')
+        .isArray({ min: 1 }).withMessage('ticketIds phải là một mảng chứa ít nhất 1 vé.'),
+    
+    body('ticketIds.*')
+        .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.')
+];
+
 // Quy tắc cho việc xác nhận đặt vé
 exports.validateConfirmBooking = [
     body('ticketIds')

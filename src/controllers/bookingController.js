@@ -40,6 +40,68 @@ exports.lockSeat = async (req, res) => {
     }
 };
 
+// API: POST /booking/lock-many - Khóa nhiều ghế cùng lúc
+exports.lockMultipleSeats = async (req, res) => {
+    const { ticketIds } = req.body; // Nhận một mảng các ticketId
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        if (!ticketIds || !Array.isArray(ticketIds) || ticketIds.length === 0) {
+            throw new Error('ticketIds phải là một mảng và không được rỗng.');
+        }
+
+        const now = new Date();
+        const lockExpires = new Date(now.getTime() + 10 * 60 * 1000); // Khóa trong 10 phút
+
+        // 1. Cập nhật tất cả các vé hợp lệ trong một lần
+        const result = await Ticket.updateMany(
+            {
+                _id: { $in: ticketIds },
+                $or: [
+                    { status: 'available' },
+                    { status: 'locked', lockExpires: { $lt: now } }
+                ]
+            },
+            {
+                $set: {
+                    status: 'locked',
+                    user: req.user._id,
+                    lockExpires: lockExpires
+                }
+            },
+            { session }
+        );
+
+        // 2. Kiểm tra xem có khóa đủ số lượng ghế yêu cầu không
+        if (result.matchedCount !== ticketIds.length || result.modifiedCount !== ticketIds.length) {
+            // Nếu không, rollback và báo lỗi
+            throw new Error('Một hoặc nhiều ghế bạn chọn không hợp lệ hoặc đã được người khác giữ. Vui lòng thử lại.');
+        }
+
+        // 3. Lấy thông tin các vé vừa khóa thành công
+        const lockedTickets = await Ticket.find({ _id: { $in: ticketIds }, user: req.user._id }).session(session);
+
+        await session.commitTransaction();
+        res.status(200).json({
+            success: true,
+            message: `Giữ chỗ thành công ${lockedTickets.length} ghế trong 10 phút.`,
+            data: lockedTickets
+        });
+
+    } catch (err) {
+        await session.abortTransaction();
+        // Phân biệt lỗi do người dùng và lỗi server
+        if (err.message.includes('Một hoặc nhiều ghế')) {
+             res.status(409).json({ success: false, message: err.message }); // 409 Conflict
+        } else {
+             res.status(500).json({ success: false, message: 'Lỗi server khi giữ chỗ', error: err.message });
+        }
+    } finally {
+        session.endSession();
+    }
+};
+
 
 // API: POST /booking/confirm - Xác nhận đặt vé
 exports.confirmBooking = async (req, res) => {
@@ -320,7 +382,6 @@ exports.handleIpnResponse = async (req, res) => {
     
     //let checkOrderId = true; // Mã đơn hàng "giá trị của vnp_TxnRef" VNPAY phản hồi tồn tại trong CSDL của bạn
     //let checkAmount = true; // Kiểm tra số tiền "giá trị của vnp_Amout/100" trùng khớp với số tiền của đơn hàng trong CSDL của bạn
-    // ...existing code...
 if(secureHash === signed){ //kiểm tra checksum
     // Tìm booking theo orderId
     const booking = await Booking.findById(orderId);
@@ -336,17 +397,39 @@ if(secureHash === signed){ //kiểm tra checksum
         if(booking.totalPrice === amount){
             // Kiểm tra trạng thái đã cập nhật chưa
             if(booking.paymentStatus !== 'completed' && booking.paymentStatus !== 'failed'){
-                if(rspCode=="00"){
-                    // Thành công
-                    booking.paymentStatus = 'completed';
-                    await booking.save();
-                    res.status(200).json({RspCode: '00', Message: 'Success'})
-                }
-                else {
-                    // Thất bại
-                    booking.paymentStatus = 'failed';
-                    await booking.save();
-                    res.status(200).json({RspCode: '00', Message: 'Success'})
+                const session = await mongoose.startSession();
+                session.startTransaction();
+                try {
+                    if(rspCode=="00"){
+                        // Thành công
+                        booking.paymentStatus = 'completed';
+                        booking.approvalStatus = 'confirmed'; // Thanh toán thành công = đơn hàng được xác nhận
+                        booking.bookingExpiresAt = undefined; // Bỏ hạn
+                        await booking.save({ session });
+
+                        // Cập nhật trạng thái các vé liên quan
+                        await Ticket.updateMany(
+                            { _id: { $in: booking.tickets } },
+                            { $set: { status: 'booked' } },
+                            { session }
+                        );
+
+                        await session.commitTransaction();
+                        res.status(200).json({RspCode: '00', Message: 'Success'})
+                    }
+                    else {
+                        // Thất bại
+                        booking.paymentStatus = 'failed';
+                        await booking.save({ session });
+                        await session.commitTransaction();
+                        res.status(200).json({RspCode: '00', Message: 'Success'})
+                    }
+                } catch (error) {
+                    await session.abortTransaction();
+                    // Trả về mã lỗi để VNPAY retry
+                    res.status(200).json({RspCode: '99', Message: 'Update failed, please retry'});
+                } finally {
+                    session.endSession();
                 }
             }
             else{
@@ -364,7 +447,6 @@ if(secureHash === signed){ //kiểm tra checksum
 else {
     res.status(200).json({RspCode: '97', Message: 'Checksum failed'})
 }
-// ...existing code...
 
 
 }
