@@ -403,7 +403,7 @@ if(secureHash === signed){ //kiểm tra checksum
                     if(rspCode=="00"){
                         // Thành công
                         booking.paymentStatus = 'completed';
-                        booking.approvalStatus = 'confirmed'; // Thanh toán thành công = đơn hàng được xác nhận
+                    // Thanh toán thành công = đơn hàng được xác nhận
                         booking.bookingExpiresAt = undefined; // Bỏ hạn
                         await booking.save({ session });
 
