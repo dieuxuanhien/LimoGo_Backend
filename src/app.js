@@ -5,6 +5,10 @@ const helmet = require('helmet');
 const path = require('path');
 const AppError = require('./utils/appError');
 
+const globalErrorHandler = require('./controllers/errorController'); 
+
+
+
 // --- Import Routers ---
 const authRouter = require('./routers/authRouter');
 const bookingRouter = require('./routers/bookingRouter');
@@ -57,14 +61,6 @@ app.all('*', (req, res, next) => {
 
 // --- Global Error Handler ---
 // Đây luôn là middleware cuối cùng
-app.use((err, req, res, next) => {
-    err.statusCode = err.statusCode || 500;
-    err.status = err.status || 'error';
-
-    res.status(err.statusCode).json({
-        status: err.status,
-        message: err.message
-    });
-});
+app.use(globalErrorHandler);
 
 module.exports = app;
