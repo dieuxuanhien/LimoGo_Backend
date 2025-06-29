@@ -37,7 +37,7 @@ const bookingSchema = new Schema({
 bookingSchema.index({ provider: 1, approvalStatus: 1, createdAt: -1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 
-bookingSchema.pre('save', function(next) {
+bookingSchema.post('save', function(next) {
     // tự release ticket nếu failed payment status
     if (this.paymentStatus === 'failed') {
         Ticket.updateMany(
