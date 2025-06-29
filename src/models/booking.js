@@ -1,6 +1,6 @@
 // src/models/booking.js
 const { Schema, model } = require('mongoose');
-
+const Ticket = require('./ticket');
 const bookingSchema = new Schema({
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     tickets: [{ type: Schema.Types.ObjectId, ref: 'Ticket', required: true }],
@@ -37,4 +37,16 @@ const bookingSchema = new Schema({
 bookingSchema.index({ provider: 1, approvalStatus: 1, createdAt: -1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 
+bookingSchema.pre('save', function(next) {
+    // tự release ticket nếu failed payment status
+    if (this.paymentStatus === 'failed') {
+        Ticket.updateMany(
+            { _id: { $in: this.tickets } },
+            { $set: { status: 'available' } },
+            { multi: true }
+        ).exec();
+
+    }
+    next();
+});
 module.exports = model('Booking', bookingSchema);
