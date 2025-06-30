@@ -37,16 +37,20 @@ const bookingSchema = new Schema({
 bookingSchema.index({ provider: 1, approvalStatus: 1, createdAt: -1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 
-bookingSchema.post('save', function(next) {
-    // tự release ticket nếu failed payment status
-    if (this.paymentStatus === 'failed') {
-        Ticket.updateMany(
-            { _id: { $in: this.tickets } },
-            { $set: { status: 'available' } },
-            { multi: true }
-        ).exec();
-
+// Middleware để tự động giải phóng vé khi đơn hàng thất bại
+bookingSchema.post('save', async function(doc) {
+    // `this` hoặc `doc` ở đây là document vừa được lưu
+    if (doc.paymentStatus === 'failed') {
+        try {
+            await Ticket.updateMany(
+                { _id: { $in: doc.tickets } },
+                { $set: { status: 'available', user: null, lockExpires: null, booking: null } } // Reset vé về trạng thái ban đầu
+            );
+        } catch (error) {
+            console.error('Lỗi khi giải phóng vé:', error);
+            // Bạn có thể thêm xử lý lỗi ở đây nếu cần
+        }
     }
-    next();
 });
+
 module.exports = model('Booking', bookingSchema);

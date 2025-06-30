@@ -483,3 +483,21 @@ exports.handleReturnResponse = async (req, res) => {
 
 
 }
+
+
+exports.getBookingPaymentStatus = async (req, res) => {
+    const { bookingId } = req.params;
+    try {
+        const booking = await Booking.findById(bookingId)
+            .select('paymentStatus')
+           
+
+        if (!booking) {
+            return res.status(404).json({ status: 'error', message: 'Booking not found' });
+        }
+        res.json({ status: 'success', data: booking });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 'error', message: 'Internal server error' });
+    }
+}

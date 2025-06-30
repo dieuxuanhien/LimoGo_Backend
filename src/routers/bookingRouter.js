@@ -29,7 +29,11 @@ router.get(
     bookingController.handleReturnResponse
 )
 
-
+router.get(
+    '/:bookingId/payment-status',
+    loggedin,
+    bookingController.getBookingPaymentStatus
+);
 
 router.get(
     '/my-history',
