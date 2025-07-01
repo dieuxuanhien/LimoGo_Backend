@@ -83,6 +83,14 @@ const dataProvider = {
     };
   });
 },
+getMany: (resource, params) => {
+  const url = `${apiUrl}/${resource}?ids=${params.ids.join(',')}`;
+  return httpClient(url).then(({ json }) => {
+    // json.data should be an array
+    const data = Array.isArray(json.data) ? json.data : [];
+    return { data: normalizeData(data) };
+  });
+},
   
   create: (resource, params) => {
     return httpClient(`${apiUrl}/${resource}`, {
