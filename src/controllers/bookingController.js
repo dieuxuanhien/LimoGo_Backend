@@ -518,3 +518,48 @@ exports.getBookingPaymentStatus = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 }
+
+
+/**
+ * @desc    Người dùng hủy việc giữ chỗ cho MỘT HOẶC NHIỀU vé
+ * @route   POST /api/booking/unlock
+ * @access  Private (Customer)
+ */
+exports.unlockTickets = async (req, res) => {
+    // Nhận vào một mảng các ticketIds
+    const { ticketIds } = req.body;
+
+    try {
+        // Sử dụng updateMany để thao tác trên nhiều document cùng lúc
+        const result = await Ticket.updateMany(
+            {
+                _id: { $in: ticketIds }, // Tìm tất cả các vé có ID nằm trong mảng được cung cấp
+                user: req.user._id,      // QUAN TRỌNG: Đảm bảo chỉ chủ nhân của lock mới có thể mở
+                status: 'locked'         // Chỉ thao tác trên các vé đang bị khóa
+            },
+            {
+                $set: {
+                    status: 'available',
+                    user: null,
+                    lockExpiresAt: null // Hoặc lockExpires tùy theo tên trường của bạn
+                }
+            }
+        );
+
+        // `result.modifiedCount` sẽ cho biết có bao nhiêu vé đã được mở khóa thành công
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy vé nào đang được bạn giữ hoặc chúng đã hết hạn.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Đã hủy giữ chỗ thành công cho ${result.modifiedCount} vé.`
+        });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server khi hủy giữ chỗ', error: err.message });
+    }
+};

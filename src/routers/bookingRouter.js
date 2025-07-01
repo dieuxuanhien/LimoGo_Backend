@@ -3,9 +3,10 @@ const express = require('express');
 const router = express.Router();
 const bookingController = require('../controllers/bookingController');
 const { loggedin, ensureRole } = require('../middlewares/identification');
-const { validateLockSeat, validateConfirmBooking, validateApproveBooking, validateGetHistory, validateLockMultipleSeats } = require('../validators/bookingValidator');
+const { validateLockSeat, validateConfirmBooking, validateApproveBooking, validateGetHistory, validateLockMultipleSeats, validateUnlockTickets } = require('../validators/bookingValidator');
 const { handleValidationErrors } = require('../middlewares/validationHandler');
 const { isProvider } = require('../middlewares/roleMiddleware');
+
 
 const { valid } = require('joi');
 
@@ -58,6 +59,15 @@ router.post(
     validateLockMultipleSeats,
     handleValidationErrors,
     bookingController.lockMultipleSeats
+);
+
+router.post(
+    '/unlock',
+    loggedin,
+    ensureRole(['customer']),
+    validateUnlockTickets,
+    handleValidationErrors,
+    bookingController.unlockTickets 
 );
 
 router.post(
