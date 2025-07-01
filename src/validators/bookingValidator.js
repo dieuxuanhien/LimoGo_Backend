@@ -51,3 +51,13 @@ exports.validateGetHistory = [
         .isInt({ gt: 0, lte: 50 }).withMessage('Limit phải là số nguyên từ 1 đến 50.') // Giới hạn để tránh client yêu cầu quá nhiều dữ liệu
         .toInt()
 ];
+
+exports.validateUnlockTickets = [
+    body('ticketIds')
+        .notEmpty().withMessage('Mảng ticketIds là bắt buộc.')
+        .isArray({ min: 1 }).withMessage('ticketIds phải là một mảng chứa ít nhất 1 vé.'),
+    
+    // Dùng ký tự đại diện (*) để kiểm tra từng phần tử trong mảng
+    body('ticketIds.*')
+        .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID Mongo hợp lệ.')
+];
