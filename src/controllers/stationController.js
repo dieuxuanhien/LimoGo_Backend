@@ -29,7 +29,7 @@ exports.getAllStations = catchAsync(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        count: stations.length,
+        totalCount: stations.length,
         data: stations
     });
 });

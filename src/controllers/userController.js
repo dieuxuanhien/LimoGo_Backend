@@ -81,94 +81,115 @@ exports.deleteMe = catchAsync(async (req, res, next) => {
 // === HÀM QUẢN LÝ CHO ADMIN ===
 
 exports.getAllUsers = catchAsync(async (req, res, next) => {
+    // Lọc theo các trường có thể tìm kiếm trực tiếp
     const directFilterableFields = ['userRole', 'verified', 'gender'];
     const regexFilterableFields = ['email', 'phoneNumber', 'name'];
+    
     let filter = {};
-
-    Object.keys(req.query).forEach(key => {
-        if (directFilterableFields.includes(key)) {
-            filter[key] = req.query[key];
-        } else if (regexFilterableFields.includes(key)) {
-            filter[key] = { $regex: req.query[key], $options: 'i' };
+    
+    // Xử lý các trường lọc trực tiếp
+    directFilterableFields.forEach(field => {
+        if (req.query[field] !== undefined) {
+            filter[field] = req.query[field];
         }
     });
-
+    
+    // Xử lý các trường lọc bằng regex (tìm kiếm gần đúng)
+    regexFilterableFields.forEach(field => {
+        if (req.query[field]) {
+            filter[field] = { $regex: req.query[field], $options: 'i' };
+        }
+    });
+    
+    // Tìm kiếm tổng quát (q parameter)
+    if (req.query.q) {
+        filter.$or = [
+            { name: { $regex: req.query.q, $options: 'i' } },
+            { email: { $regex: req.query.q, $options: 'i' } },
+            { phoneNumber: { $regex: req.query.q, $options: 'i' } }
+        ];
+    }
+    
+    // Phân trang
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-
-    const [users, totalUsers] = await Promise.all([
-        User.find(filter).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    
+    const [users, totalCount] = await Promise.all([
+        User.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
         User.countDocuments(filter)
     ]);
-
+    
     res.status(200).json({
         success: true,
-        count: users.length,
-        totalUsers,
-        totalPages: Math.ceil(totalUsers / limit),
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
         currentPage: page,
-        data: users
+        data: users,
     });
 });
 
 exports.getUserById = catchAsync(async (req, res, next) => {
-    // Validator đã tìm và gắn user vào req.foundUser, ta chỉ cần dùng lại
-    const user = req.foundUser.toObject(); // Chuyển sang object thường để xử lý
-    delete user.password; // Đảm bảo password không bị lộ
-
-    res.status(200).json({ success: true, data: user });
+    // Validator đã gắn user vào req.foundUser
+    res.status(200).json({
+        success: true,
+        data: req.foundUser,
+    });
 });
 
 exports.createUser = catchAsync(async (req, res, next) => {
-    const filteredBody = filterObject(req.body, 'name', 'email', 'password', 'phoneNumber', 'gender', 'dateOfBirth', 'userRole', 'verified');
+    const filteredBody = filterObject(req.body, 'name', 'email', 'password', 'phoneNumber', 'userRole', 'gender', 'dateOfBirth', 'verified');
     
+    // Hash password nếu có
     if (filteredBody.password) {
         filteredBody.password = await hashPassword(filteredBody.password);
     }
     
     const newUser = await User.create(filteredBody);
+    
+    // Loại bỏ password khỏi response
     newUser.password = undefined;
-
-    // THAY ĐỔI: Thêm message
-    res.status(201).json({ 
-        success: true, 
-        message: 'Tạo người dùng mới thành công!',
-        data: newUser 
+    
+    res.status(201).json({
+        success: true,
+        message: 'Tạo người dùng thành công!',
+        data: newUser,
     });
 });
 
-
 exports.updateUser = catchAsync(async (req, res, next) => {
-    // Lấy user từ req thay vì query lại
-    const userToUpdate = req.foundUser;
-
-    const updateData = filterObject(req.body, 'name', 'email', 'phoneNumber', 'gender', 'dateOfBirth', 'userRole', 'verified');
-
+    // Validator đã gắn user vào req.foundUser
+    const user = req.foundUser;
+    
+    const filteredBody = filterObject(req.body, 'name', 'email', 'phoneNumber', 'userRole', 'gender', 'dateOfBirth', 'verified');
+    
+    // Hash password nếu có
     if (req.body.password) {
-        updateData.password = await hashPassword(req.body.password);
+        filteredBody.password = await hashPassword(req.body.password);
     }
     
-    // Cập nhật các trường  
-    Object.assign(userToUpdate, updateData);
-    const updatedUser = await userToUpdate.save();
-    updatedUser.password = undefined;
-
-    res.status(200).json({ 
-        success: true, 
-        message: `Cập nhật thông tin người dùng thành công.`,
-        data: updatedUser 
+    const updatedUser = await User.findByIdAndUpdate(user._id, filteredBody, {
+        new: true,
+        runValidators: true
+    }).select('-password');
+    
+    res.status(200).json({
+        success: true,
+        message: 'Cập nhật người dùng thành công!',
+        data: updatedUser,
     });
 });
 
 exports.deleteUser = catchAsync(async (req, res, next) => {
-    if (String(req.user._id) === req.params.id) {
-        return next(new AppError('Admin không thể tự xóa tài khoản qua API này.', 400));
-    }
-
-    await req.foundUser.deleteOne();
-
-    // THAY ĐỔI: Chuyển sang 200 và thêm message
+    // Validator đã gắn user vào req.foundUser
+    const user = req.foundUser;
+    
+    await User.findByIdAndDelete(user._id);
+    
     res.status(200).json({
         success: true,
         message: 'Xóa người dùng thành công.',

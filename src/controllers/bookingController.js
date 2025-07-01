@@ -563,3 +563,148 @@ exports.unlockTickets = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server khi hủy giữ chỗ', error: err.message });
     }
 };
+
+
+// === ADMIN MANAGEMENT FUNCTIONS ===
+
+exports.getAllBookings = async (req, res) => {
+    try {
+        // Pagination
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Filters
+        let filter = {};
+        if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
+        if (req.query.approvalStatus) filter.approvalStatus = req.query.approvalStatus;
+        if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
+        if (req.query.provider) filter.provider = req.query.provider;
+        if (req.query.user) filter.user = req.query.user;
+
+        const [bookings, totalCount] = await Promise.all([
+            Booking.find(filter)
+                .populate({ path: 'user', select: 'name email phoneNumber' })
+                .populate({ path: 'provider', select: 'name phoneNumber' })
+                .populate({ 
+                    path: 'tickets',
+                    select: 'seatNumber price status',
+                    populate: {
+                        path: 'trip',
+                        select: 'departureTime route',
+                        populate: {
+                            path: 'route',
+                            select: 'originStation destinationStation',
+                            populate: {
+                                path: 'originStation destinationStation',
+                                select: 'name city'
+                            }
+                        }
+                    }
+                })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Booking.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            currentPage: page,
+            data: bookings
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};
+
+exports.getBookingById = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id)
+            .populate({ path: 'user', select: 'name email phoneNumber' })
+            .populate({ path: 'provider', select: 'name phoneNumber email' })
+            .populate({ 
+                path: 'tickets',
+                populate: {
+                    path: 'trip',
+                    populate: [
+                        {
+                            path: 'route',
+                            populate: {
+                                path: 'originStation destinationStation',
+                                select: 'name city address'
+                            }
+                        },
+                        { path: 'vehicle', select: 'type licensePlate' },
+                        { path: 'driver', select: 'name phoneNumber' }
+                    ]
+                }
+            });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
+        }
+
+        res.status(200).json({ success: true, data: booking });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};
+
+exports.updateBooking = async (req, res) => {
+    try {
+        const { paymentStatus, approvalStatus } = req.body;
+        const updateData = {};
+        
+        if (paymentStatus) updateData.paymentStatus = paymentStatus;
+        if (approvalStatus) updateData.approvalStatus = approvalStatus;
+
+        const booking = await Booking.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true, runValidators: true }
+        ).populate({ path: 'user', select: 'name email' })
+         .populate({ path: 'provider', select: 'name' });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Cập nhật đơn hàng thành công.',
+            data: booking 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};
+
+exports.deleteBooking = async (req, res) => {
+    try {
+        const booking = await Booking.findByIdAndDelete(req.params.id);
+        
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
+        }
+
+        // Also update related tickets to available status
+        await Ticket.updateMany(
+            { _id: { $in: booking.tickets } },
+            { 
+                $set: { status: 'available' },
+                $unset: { user: "", booking: "" }
+            }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Xóa đơn hàng thành công.' 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};

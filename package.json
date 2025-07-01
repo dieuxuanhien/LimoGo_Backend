@@ -19,7 +19,11 @@
     "start": "node --watch --trace-warnings --env-file=.env src/server.js",
     "swagger": "node ./swagger.js",
     "production": "node src/server.js",
-    "seed": "node --env-file=.env src/seeder.js"
+    "seed": "node --env-file=.env src/seeder.js",
+    "admin:install": "cd admin && npm install",
+    "admin:start": "cd admin && npm start",
+    "admin:build": "cd admin && npm run build",
+    "admin:dev": "concurrently \"npm run dev\" \"npm run admin:start\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

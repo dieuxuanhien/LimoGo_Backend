@@ -32,40 +32,43 @@ exports.getAllProviders = async (req, res, next) => {
 
     res.status(200).json({
          success: true, 
+         totalCount,
+         totalPages: Math.ceil(totalCount / limit),
+         currentPage: page,
          data: providers 
         });
 }
 
 
-exports.getProviderById = async (req, res) => {
+exports.getProviderById = catchAsync(async (req, res, next) => {
     const { id } = req.params;
     const provider = await Provider.findById(id).select('+mainUser');
 
     if (!provider) {
-        // Sử dụng AppError để tạo lỗi 404
         return next(new AppError('Không tìm thấy nhà xe với ID này', 404));
     }
 
     res.status(200).json({ 
-        status: 'success',
-        data: { provider } 
+        success: true,
+        data: provider 
     });
-}
+});
 
 
-exports.createProvider = async (req, res, next) => { // Thêm next để dùng với catchAsync sau này
+exports.createProvider = catchAsync(async (req, res, next) => {
     const filteredBody = filterObject(req.body, 'name', 'email', 'phone', 'address', 'taxId', 'mainUser');
     const newProvider = await Provider.create(filteredBody);
 
     res.status(201).json({
-        status: 'success',
-        data: { provider: newProvider }
+        success: true,
+        message: 'Tạo nhà xe thành công!',
+        data: newProvider
     });
-};
+});
 
 
-exports.updateProvider = async (req, res, next) => {
-const { id } = req.params;
+exports.updateProvider = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
     const filteredBody = filterObject(req.body, 'name', 'email', 'phone', 'address', 'status', 'taxId');
     
     const provider = await Provider.findByIdAndUpdate(id, filteredBody, {
@@ -78,13 +81,14 @@ const { id } = req.params;
     }
 
     res.status(200).json({ 
-        status: 'success',
-        data: { provider } 
+        success: true,
+        message: 'Cập nhật nhà xe thành công!',
+        data: provider 
     });
-};
+});
 
 
-exports.deleteProvider = async (req, res) => {
+exports.deleteProvider = catchAsync(async (req, res, next) => {
     const { id } = req.params;
     const provider = await Provider.findByIdAndDelete(id);
 
@@ -92,12 +96,11 @@ exports.deleteProvider = async (req, res) => {
         return next(new AppError('Không tìm thấy nhà xe với ID này', 404));
     }
     
-    // Status 204 (No Content) là phù hợp nhất cho việc xóa thành công
-    res.status(204).json({
-        status: 'success',
-        data: null
+    res.status(200).json({
+        success: true,
+        message: 'Xóa nhà xe thành công.'
     });
-}
+});
 
 
 exports.getProviderByMainUser = async (req, res) => {

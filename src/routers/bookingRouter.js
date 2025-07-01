@@ -36,12 +36,44 @@ router.get(
     bookingController.getBookingPaymentStatus
 );
 
+// Admin get all bookings
+router.get(
+    '/',
+    loggedin,
+    ensureRole(['admin']),
+    bookingController.getAllBookings
+);
+
 router.get(
     '/my-history',
     loggedin,
     validateGetHistory,
     handleValidationErrors,
     bookingController.getMyBookings
+);
+
+// Admin get booking by ID
+router.get(
+    '/:id',
+    loggedin,
+    ensureRole(['admin']),
+    bookingController.getBookingById
+);
+
+// Admin update booking
+router.patch(
+    '/:id',
+    loggedin,
+    ensureRole(['admin']),
+    bookingController.updateBooking
+);
+
+// Admin delete booking
+router.delete(
+    '/:id',
+    loggedin,
+    ensureRole(['admin']),
+    bookingController.deleteBooking
 );
 
 

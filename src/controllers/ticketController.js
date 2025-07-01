@@ -184,3 +184,150 @@ exports.cancelTicket = async (req, res) => {
   }
 };
 
+// === ADMIN MANAGEMENT FUNCTIONS ===
+
+exports.getAllTicketsAdmin = async (req, res) => {
+  try {
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filters
+    let filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.user) filter.user = req.query.user;
+    if (req.query.trip) filter.trip = req.query.trip;
+
+    const [tickets, totalCount] = await Promise.all([
+      Ticket.find(filter)
+        .populate({
+          path: 'trip',
+          populate: [
+            { 
+              path: 'route',
+              populate: {
+                path: 'originStation destinationStation',
+                select: 'name city'
+              }
+            },
+            { path: 'vehicle', select: 'type licensePlate' },
+            { path: 'driver', select: 'name' },
+            { path: 'provider', select: 'name' }
+          ]
+        })
+        .populate('user', 'name email phoneNumber')
+        .populate('booking')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Ticket.countDocuments(filter)
+    ]);
+
+    res.status(200).json({
+      success: true,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      data: tickets
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
+exports.getTicketByIdAdmin = async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id)
+      .populate({
+        path: 'trip',
+        populate: [
+          { 
+            path: 'route',
+            populate: {
+              path: 'originStation destinationStation',
+              select: 'name city address'
+            }
+          },
+          { path: 'vehicle', select: 'type licensePlate capacity' },
+          { path: 'driver', select: 'name phoneNumber' },
+          { path: 'provider', select: 'name phoneNumber email' }
+        ]
+      })
+      .populate('user', 'name email phoneNumber')
+      .populate('booking');
+
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy vé.' });
+    }
+
+    res.status(200).json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
+exports.updateTicketAdmin = async (req, res) => {
+  try {
+    const { status, user, seatNumber, price } = req.body;
+    const updateData = {};
+    
+    if (status) updateData.status = status;
+    if (user) updateData.user = user;
+    if (seatNumber) updateData.seatNumber = seatNumber;
+    if (price) updateData.price = price;
+
+    const ticket = await Ticket.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('trip user');
+
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy vé.' });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Cập nhật vé thành công.',
+      data: ticket 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
+exports.deleteTicketAdmin = async (req, res) => {
+  try {
+    const ticket = await Ticket.findByIdAndDelete(req.params.id);
+    
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy vé.' });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Xóa vé thành công.' 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
+exports.createTicketAdmin = async (req, res) => {
+  try {
+    const ticket = await Ticket.create(req.body);
+    const populatedTicket = await Ticket.findById(ticket._id)
+      .populate('trip user');
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Tạo vé thành công.',
+      data: populatedTicket 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
+  }
+};
+
