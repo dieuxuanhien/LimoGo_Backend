@@ -4,7 +4,7 @@ const Ticket = require('../models/ticket');
 // Lấy các vé đã đặt của người dùng đang đăng nhập
 exports.getMyBookedTickets = async (req, res) => {
     try {
-        const tickets = await Ticket.find({ user: req.user._id, status: 'booked' })
+        const tickets = await Ticket.find({ user: req.user.id, status: 'booked' })
             .populate({
                 path: 'trip',
                 select: 'departureTime arrivalTime',
@@ -23,25 +23,40 @@ exports.getMyBookedTickets = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server' });
     }
 };
-
+// Lấy vé đã đặt hoặc chờ duyệt
+// Lấy vé đã đặt hoặc chờ duyệt
 exports.getMyTickets = async (req, res) => {
   try {
-    const tickets = await Ticket.find({ user: req.user._id })
+    const tickets = await Ticket.find({ user: req.user._id, status: { $in: ['booked', 'pending_approval'] } })
       .populate({
         path: 'trip',
-        populate: [
-          { path: 'route' },
-          { path: 'vehicle' },
-          { path: 'driver' }
-        ]
+        select: 'departureTime route', // Chỉ lấy thời gian đi và thông tin tuyến
+        populate: {
+          path: 'route',
+          select: 'originStation destinationStation', // Chỉ lấy bến đi và bến đến
+          populate: [
+            { path: 'originStation', select: 'name city' },
+            { path: 'destinationStation', select: 'name city' }
+          ]
+        }
       })
-      .populate('user');
+      .select('seatNumber status accessId trip') // Chọn các trường cần thiết từ Ticket
+      .sort({ createdAt: -1 })
+      .lean(); // Dùng lean() để tăng hiệu suất và dễ chỉnh sửa
+
+    // Xử lý để chỉ hiển thị accessId cho vé đã 'booked'
+    tickets.forEach(ticket => {
+      if (ticket.status !== 'booked') {
+        ticket.accessId = undefined; // Ẩn accessId nếu vé không phải đã đặt
+      }
+    });
 
     res.status(200).json({ success: true, data: tickets });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 exports.getAllTickets = async (req, res) => {
   try {

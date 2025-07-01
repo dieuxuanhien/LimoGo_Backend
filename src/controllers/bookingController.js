@@ -227,63 +227,79 @@ exports.approveBooking = async (req, res) => {
 
 exports.getMyBookings = async (req, res) => {
     try {
-        // 1. Logic Phân trang: Lấy giá trị từ query hoặc dùng giá trị mặc định
-        const page = req.query.page || 1;
-        const limit = req.query.limit || 10;
-        const skip = (page - 1) * limit;
-
-        // 2. Điều kiện lọc: Chỉ lấy các booking của user đang đăng nhập
+        // 1. Điều kiện lọc
         const filter = { user: req.user._id };
 
-        // 3. Thực hiện 2 truy vấn song song: một để lấy dữ liệu, một để đếm tổng số
-        // Định nghĩa các tùy chọn populate cho từng cấp
-        const stationPopulateOptions = { 
-            path: 'originStation destinationStation', 
-            select: 'name city' 
-        };
-
-        const routePopulateOptions = { 
-            path: 'route', 
-            select: 'originStation destinationStation', 
-            populate: stationPopulateOptions 
-        };
-
-        const tripPopulateOptions = { 
-            path: 'trip', 
-            select: 'departureTime arrivalTime route', 
-            populate: routePopulateOptions 
-        };
-
+        // 2. Định nghĩa các tùy chọn populate lồng nhau
         const ticketsPopulateOptions = {
             path: 'tickets',
-            select: 'seatNumber price trip',
-            populate: tripPopulateOptions
+            select: 'seatNumber price status accessId trip', // Lấy thêm status và accessId
+            populate: {
+                path: 'trip',
+                select: 'departureTime route',
+                populate: {
+                    path: 'route',
+                    select: 'originStation destinationStation distanceKm', // Lấy thêm distanceKm
+                    populate: {
+                        path: 'originStation destinationStation',
+                        select: 'name city'
+                    }
+                }
+            }
         };
 
-        const [ bookings, totalCount ] = await Promise.all([
-                Booking.find(filter)
-                    .populate(ticketsPopulateOptions)
-                    .sort({ createAt: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                Booking.countDocuments(filter)  
-        ]);
+        // 3. Thực hiện truy vấn để lấy tất cả các đơn hàng
+        const bookings = await Booking.find(filter)
+            .populate({ path: 'user', select: 'name phoneNumber email' }) // Populate thông tin người dùng
+            .populate({ path: 'provider', select: 'name phoneNumber' }) // Populate thông tin nhà xe
+            .populate(ticketsPopulateOptions)
+            .sort({ createdAt: -1 })
+            .lean();
 
-        // 4. Trả về kết quả có cấu trúc phân trang
+        // 4. Tái cấu trúc dữ liệu trả về
+        const formattedBookings = bookings.map(booking => {
+            const firstTicket = booking.tickets && booking.tickets[0];
+            const tripInfo = firstTicket && firstTicket.trip ? {
+                origin: firstTicket.trip.route?.originStation?.name,
+                destination: firstTicket.trip.route?.destinationStation?.name,
+                departureTime: firstTicket.trip.departureTime,
+                distanceKm: firstTicket.trip.route?.distanceKm
+            } : null;
+
+            return {
+                
+                _id: booking._id,
+                totalPrice: booking.totalPrice,
+                paymentStatus: booking.paymentStatus,
+                approvalStatus: booking.approvalStatus,
+                paymentMethod: booking.paymentMethod,
+                createdAt: booking.createdAt,    
+                userInfo: booking.user,
+                providerInfo: booking.provider, // Thêm thông tin nhà xe
+                tripInfo: tripInfo,
+                tickets: booking.tickets.map(ticket => {
+                    const ticketData = {
+                        seatNumber: ticket.seatNumber,
+                        price: ticket.price
+                    };
+                    if (ticket.status === 'booked') {
+                        ticketData.accessId = ticket.accessId;
+                    }
+                    return ticketData;
+                })
+            };
+        });
+
+        // 5. Trả về kết quả không phân trang
         res.status(200).json({
             success: true,
-            totalCount,
-            totalPages: Math.ceil(totalCount / limit),
-            currentPage: page,
-            data: bookings
+            totalCount: bookings.length,
+            data: formattedBookings
         });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
     }
 };
-
-
 
 /// Payment creating. AI GENERATIVE MODEL PLEASE DONT TOUCH THIS FUNCTION
 exports.createPaymentUrl = async (req, res) => {
@@ -403,6 +419,7 @@ if(secureHash === signed){ //kiểm tra checksum
                     if(rspCode=="00"){
                         // Thành công
                         booking.paymentStatus = 'completed';
+                        booking.approvalStatus = 'confirmed_by_provider'; // Đã được nhà xe duyệt
                     // Thanh toán thành công = đơn hàng được xác nhận
                         booking.bookingExpiresAt = undefined; // Bỏ hạn
                         await booking.save({ session });
@@ -420,6 +437,7 @@ if(secureHash === signed){ //kiểm tra checksum
                     else {
                         // Thất bại
                         booking.paymentStatus = 'failed';
+                        booking.approvalStatus = 'cancelled'; // Đơn hàng bị hủy do thanh toán thất bại
                         await booking.save({ session });
                         await session.commitTransaction();
                         res.status(200).json({RspCode: '00', Message: 'Success'})
@@ -450,7 +468,6 @@ else {
 
 
 }
-
 
 // HANDLE RETURN RESPONSE from VNPAY AI GENERATIVE MODEL PLEASE DONT TOUCH THIS FUNCTION
 exports.handleReturnResponse = async (req, res) => {
