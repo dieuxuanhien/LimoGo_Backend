@@ -36,13 +36,6 @@ router.get(
     bookingController.getBookingPaymentStatus
 );
 
-// Admin get all bookings
-router.get(
-    '/',
-    loggedin,
-    ensureRole(['admin']),
-    bookingController.getAllBookings
-);
 
 router.get(
     '/my-history',
@@ -52,6 +45,13 @@ router.get(
     bookingController.getMyBookings
 );
 
+// Admin get all bookings
+router.get(
+    '/',
+    loggedin,
+    ensureRole(['admin']),
+    bookingController.getAllBookings
+);
 // Admin get booking by ID
 router.get(
     '/:id',

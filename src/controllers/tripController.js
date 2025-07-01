@@ -58,24 +58,35 @@ const getAllTrips = async (req, res) => {
         console.log('-----------------------------------');
         // -----------------------------------
 
-
         // Logic Phân trang (Pagination)
         const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
         const limit = parseInt(req.query.limit) || 10; // Số lượng bản ghi mỗi trang, mặc định là 10
         const skip = (page - 1) * limit; // Số bản ghi cần bỏ qua
 
-        const [ trips, totalCount ] = await Promise.all([
-            Trip.find(filter)
-                .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
-                .populate('vehicle')
-                .populate('driver')
-                .populate('provider', 'name')
-                .sort({ departureTime: -1 }) // Sắp xếp theo thời gian khởi hành mới nhất
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Trip.countDocuments(filter) // Đếm tổng số bản ghi
-        ]);
+        let trips, totalCount;
+        if (req.user.role === 'admin') {
+            [trips, totalCount] = await Promise.all([
+                Trip.find(filter)
+                    .sort({ departureTime: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Trip.countDocuments(filter)
+            ]);
+        } else {
+            [trips, totalCount] = await Promise.all([
+                Trip.find(filter)
+                    .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
+                    .populate('vehicle')
+                    .populate('driver')
+                    .populate('provider', 'name')
+                    .sort({ departureTime: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Trip.countDocuments(filter)
+            ]);
+        }
 
         res.status(200).json({
             success: true,
@@ -93,18 +104,23 @@ const getAllTrips = async (req, res) => {
 
 const getTripById = async (req, res) => {
     try {
-        const trip = await Trip.findById(req.params.id)
-            .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
-            .populate('vehicle')
-            .populate('driver')
-            .populate('provider');
+        let trip;
+        if (req.user.role === 'admin') {
+            trip = await Trip.findById(req.params.id).lean();
+        } else {
+            trip = await Trip.findById(req.params.id)
+                .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
+                .populate('vehicle')
+                .populate('driver')
+                .populate('provider');
+        }
 
         if (!trip) {
             return res.status(404).json({ success: false, message: 'Trip not found' });
         }        
         
         // If provider, only allow access to own trips
-        if (req.user.role === 'provider' && String(trip.provider._id) !== String(req.provider._id)) {
+        if (req.user.role === 'provider' && String(trip.provider) !== String(req.provider._id)) {
             return res.status(403).json({ message: 'Forbidden: Not your trip' });
         }
 

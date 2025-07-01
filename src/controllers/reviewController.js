@@ -66,16 +66,28 @@ exports.getAllReviews = async (req, res) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        const [reviews, totalCount] = await Promise.all([
-            Review.find({})
-                .populate('user', 'name email') // Lấy thông tin người dùng
-                .populate('trip') // Lấy thông tin chuyến đi
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Review.countDocuments({})
-        ]);
+        let reviews, totalCount;
+        if (req.user.role === 'admin') {
+            [reviews, totalCount] = await Promise.all([
+                Review.find({})
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Review.countDocuments({})
+            ]);
+        } else {
+            [reviews, totalCount] = await Promise.all([
+                Review.find({})
+                    .populate('user', 'name email') // Lấy thông tin người dùng
+                    .populate('trip') // Lấy thông tin chuyến đi
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Review.countDocuments({})
+            ]);
+        }
 
         res.status(200).json({
             success: true,

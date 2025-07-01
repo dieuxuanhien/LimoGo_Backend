@@ -20,11 +20,17 @@ exports.getAllRoutes = catchAsync(async (req, res, next) => {
     }
     // Admin thấy tất cả.
 
-    const routes = await Route.find(filter)
-        .select('originStation destinationStation ownerProvider estimatedDurationMin distanceKm')
-        .populate({ path: 'originStation', select: 'name city type' })
-        .populate({ path: 'destinationStation', select: 'name city type' })
-        .populate({ path: 'ownerProvider', select: 'name' });
+    let routes;
+    if (req.user.role === 'admin') {
+        routes = await Route.find(filter)
+            .select('originStation destinationStation ownerProvider estimatedDurationMin distanceKm');
+    } else {
+        routes = await Route.find(filter)
+            .select('originStation destinationStation ownerProvider estimatedDurationMin distanceKm')
+            .populate({ path: 'originStation', select: 'name city type' })
+            .populate({ path: 'destinationStation', select: 'name city type' })
+            .populate({ path: 'ownerProvider', select: 'name' });
+    }
 
     res.status(200).json({
         success: true,
@@ -35,8 +41,13 @@ exports.getAllRoutes = catchAsync(async (req, res, next) => {
 
 // Lấy chi tiết một route với kiểm tra quyền
 exports.getRouteById = catchAsync(async (req, res, next) => {
-    const route = await Route.findById(req.params.id)
-        .populate('originStation destinationStation');
+    let route;
+    if (req.user.role === 'admin') {
+        route = await Route.findById(req.params.id);
+    } else {
+        route = await Route.findById(req.params.id)
+            .populate('originStation destinationStation');
+    }
 
     if (!route) {
         return next(new AppError('Không tìm thấy tuyến đường với ID này', 404));

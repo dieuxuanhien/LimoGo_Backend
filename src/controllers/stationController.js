@@ -23,9 +23,15 @@ exports.getAllStations = catchAsync(async (req, res, next) => {
     // Nếu là admin, filter sẽ là {} và họ thấy tất cả.
     // Nếu là customer, họ cũng thấy tất cả (để phục vụ tìm kiếm).
 
-    const stations = await Station.find(filter)
-        .select('name city address type ownerProvider')
-        .populate('ownerProvider', 'name');
+    let stations;
+    if (req.user.role === 'admin') {
+        stations = await Station.find(filter)
+            .select('name city address type ownerProvider');
+    } else {
+        stations = await Station.find(filter)
+            .select('name city address type ownerProvider')
+            .populate('ownerProvider', 'name');
+    }
 
     res.status(200).json({
         success: true,

@@ -112,10 +112,18 @@ exports.getAllIssues = async (req, res) => {
         // Cho phép admin filter theo status hoặc category
         const filter = filterObject(req.query, 'status', 'category', 'user');
 
-        const [issues, totalCount] = await Promise.all([
-            Issue.find(filter).populate('user', 'name email').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-            Issue.countDocuments(filter)
-        ]);
+        let issues, totalCount;
+        if (req.user.role === 'admin') {
+            [issues, totalCount] = await Promise.all([
+                Issue.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+                Issue.countDocuments(filter)
+            ]);
+        } else {
+            [issues, totalCount] = await Promise.all([
+                Issue.find(filter).populate('user', 'name email').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+                Issue.countDocuments(filter)
+            ]);
+        }
 
         res.status(200).json({
             success: true,

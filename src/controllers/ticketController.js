@@ -201,23 +201,6 @@ exports.getAllTicketsAdmin = async (req, res) => {
 
     const [tickets, totalCount] = await Promise.all([
       Ticket.find(filter)
-        .populate({
-          path: 'trip',
-          populate: [
-            { 
-              path: 'route',
-              populate: {
-                path: 'originStation destinationStation',
-                select: 'name city'
-              }
-            },
-            { path: 'vehicle', select: 'type licensePlate' },
-            { path: 'driver', select: 'name' },
-            { path: 'provider', select: 'name' }
-          ]
-        })
-        .populate('user', 'name email phoneNumber')
-        .populate('booking')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -239,29 +222,10 @@ exports.getAllTicketsAdmin = async (req, res) => {
 
 exports.getTicketByIdAdmin = async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id)
-      .populate({
-        path: 'trip',
-        populate: [
-          { 
-            path: 'route',
-            populate: {
-              path: 'originStation destinationStation',
-              select: 'name city address'
-            }
-          },
-          { path: 'vehicle', select: 'type licensePlate capacity' },
-          { path: 'driver', select: 'name phoneNumber' },
-          { path: 'provider', select: 'name phoneNumber email' }
-        ]
-      })
-      .populate('user', 'name email phoneNumber')
-      .populate('booking');
-
+    const ticket = await Ticket.findById(req.params.id).lean();
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy vé.' });
     }
-
     res.status(200).json({ success: true, data: ticket });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });
@@ -282,7 +246,7 @@ exports.updateTicketAdmin = async (req, res) => {
       req.params.id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('trip user');
+    ).lean();
 
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy vé.' });
@@ -318,13 +282,10 @@ exports.deleteTicketAdmin = async (req, res) => {
 exports.createTicketAdmin = async (req, res) => {
   try {
     const ticket = await Ticket.create(req.body);
-    const populatedTicket = await Ticket.findById(ticket._id)
-      .populate('trip user');
-
     res.status(201).json({ 
       success: true, 
       message: 'Tạo vé thành công.',
-      data: populatedTicket 
+      data: ticket 
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Lỗi server', error: error.message });

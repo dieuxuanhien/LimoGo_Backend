@@ -15,17 +15,28 @@ const getAllVehicles = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Chạy song song 2 query: một để lấy dữ liệu, một để đếm tổng số bản ghi
-        const [vehicles, totalCount] = await Promise.all([
-            Vehicle.find(filter)
-                .populate('currentStation', 'name city')
-                .populate('provider', 'name')
-                .sort({ createdAt: -1 }) // Sắp xếp để kết quả nhất quán
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Vehicle.countDocuments(filter)
-        ]);
+        let vehicles, totalCount;
+        if (req.user.role === 'admin') {
+            [vehicles, totalCount] = await Promise.all([
+                Vehicle.find(filter)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Vehicle.countDocuments(filter)
+            ]);
+        } else {
+            [vehicles, totalCount] = await Promise.all([
+                Vehicle.find(filter)
+                    .populate('currentStation', 'name city')
+                    .populate('provider', 'name')
+                    .sort({ createdAt: -1 }) // Sắp xếp để kết quả nhất quán
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Vehicle.countDocuments(filter)
+            ]);
+        }
 
         const totalPages = Math.ceil(totalCount / limit);
 
@@ -48,8 +59,9 @@ const getAllVehicles = async (req, res) => {
 
 // [GET] /api/vehicles/:id - Lấy chi tiết một xe
 const getVehicleById = async (req, res) => {
-    // Middleware `checkVehicleOwnership` đã tìm và xác thực xe
-    // Chúng ta chỉ cần trả về `req.vehicle`
+    if (req.user.role === 'admin') {
+        return res.status(200).json({ success: true, data: req.vehicle });
+    }
     const vehicle = await req.vehicle.populate([
         { path: 'currentStation' },
         { path: 'provider', select: 'name' }

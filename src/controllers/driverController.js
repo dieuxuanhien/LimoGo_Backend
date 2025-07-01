@@ -16,9 +16,14 @@ const getAllDrivers = async (req, res) => {
         if (req.query.age) filter.age = req.query.age;
         if (req.query.status) filter.status = req.query.status;
 
-        const drivers = await Driver.find(filter)
-            .populate('currentStation', 'name city')
-            .populate('provider', 'name');
+        let drivers;
+        if (req.user.role === 'admin') {
+            drivers = await Driver.find(filter);
+        } else {
+            drivers = await Driver.find(filter)
+                .populate('currentStation', 'name city')
+                .populate('provider', 'name');
+        }
 
         res.status(200).json({ success: true, count: drivers.length, data: drivers });
     } catch (error) {
@@ -59,8 +64,9 @@ const createDriver = async (req, res) => {
  * Chúng ta chỉ việc trả về `req.driver`.
  */
 const getDriverById = async (req, res) => {
-    // Không cần try...catch hay tìm kiếm nữa. Middleware đã xử lý hết.
-    // Chúng ta có thể populate thêm dữ liệu nếu muốn trước khi gửi về
+    if (req.user.role === 'admin') {
+        return res.status(200).json({ success: true, data: req.driver });
+    }
     const driver = await req.driver.populate([
         { path: 'currentStation', select: 'name city' },
         { path: 'provider', select: 'name' }
@@ -82,10 +88,14 @@ const updateDriver = async (req, res) => {
         }
         Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
         
-        // Sử dụng req.driver._id đã được xác thực
-        const updatedDriver = await Driver.findByIdAndUpdate(req.driver._id, updateData, { new: true, runValidators: true })
-            .populate('currentStation', 'name city')
-            .populate('provider', 'name');
+        let updatedDriver;
+        if (req.user.role === 'admin') {
+            updatedDriver = await Driver.findByIdAndUpdate(req.driver._id, updateData, { new: true, runValidators: true });
+        } else {
+            updatedDriver = await Driver.findByIdAndUpdate(req.driver._id, updateData, { new: true, runValidators: true })
+                .populate('currentStation', 'name city')
+                .populate('provider', 'name');
+        }
         
         res.status(200).json({ success: true, message: 'Cập nhật tài xế thành công.', data: updatedDriver });
     } catch (error) {

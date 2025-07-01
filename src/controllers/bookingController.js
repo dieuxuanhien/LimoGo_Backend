@@ -582,32 +582,44 @@ exports.getAllBookings = async (req, res) => {
         if (req.query.provider) filter.provider = req.query.provider;
         if (req.query.user) filter.user = req.query.user;
 
-        const [bookings, totalCount] = await Promise.all([
-            Booking.find(filter)
-                .populate({ path: 'user', select: 'name email phoneNumber' })
-                .populate({ path: 'provider', select: 'name phoneNumber' })
-                .populate({ 
-                    path: 'tickets',
-                    select: 'seatNumber price status',
-                    populate: {
-                        path: 'trip',
-                        select: 'departureTime route',
+        let bookings, totalCount;
+        if (req.user.role === 'admin') {
+            [bookings, totalCount] = await Promise.all([
+                Booking.find(filter)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Booking.countDocuments(filter)
+            ]);
+        } else {
+            [bookings, totalCount] = await Promise.all([
+                Booking.find(filter)
+                    .populate({ path: 'user', select: 'name email phoneNumber' })
+                    .populate({ path: 'provider', select: 'name phoneNumber' })
+                    .populate({ 
+                        path: 'tickets',
+                        select: 'seatNumber price status',
                         populate: {
-                            path: 'route',
-                            select: 'originStation destinationStation',
+                            path: 'trip',
+                            select: 'departureTime route',
                             populate: {
-                                path: 'originStation destinationStation',
-                                select: 'name city'
+                                path: 'route',
+                                select: 'originStation destinationStation',
+                                populate: {
+                                    path: 'originStation destinationStation',
+                                    select: 'name city'
+                                }
                             }
                         }
-                    }
-                })
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Booking.countDocuments(filter)
-        ]);
+                    })
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Booking.countDocuments(filter)
+            ]);
+        }
 
         res.status(200).json({
             success: true,
@@ -623,26 +635,31 @@ exports.getAllBookings = async (req, res) => {
 
 exports.getBookingById = async (req, res) => {
     try {
-        const booking = await Booking.findById(req.params.id)
-            .populate({ path: 'user', select: 'name email phoneNumber' })
-            .populate({ path: 'provider', select: 'name phoneNumber email' })
-            .populate({ 
-                path: 'tickets',
-                populate: {
-                    path: 'trip',
-                    populate: [
-                        {
-                            path: 'route',
-                            populate: {
-                                path: 'originStation destinationStation',
-                                select: 'name city address'
-                            }
-                        },
-                        { path: 'vehicle', select: 'type licensePlate' },
-                        { path: 'driver', select: 'name phoneNumber' }
-                    ]
-                }
-            });
+        let booking;
+        if (req.user.role === 'admin') {
+            booking = await Booking.findById(req.params.id).lean();
+        } else {
+            booking = await Booking.findById(req.params.id)
+                .populate({ path: 'user', select: 'name email phoneNumber' })
+                .populate({ path: 'provider', select: 'name phoneNumber email' })
+                .populate({ 
+                    path: 'tickets',
+                    populate: {
+                        path: 'trip',
+                        populate: [
+                            {
+                                path: 'route',
+                                populate: {
+                                    path: 'originStation destinationStation',
+                                    select: 'name city address'
+                                }
+                            },
+                            { path: 'vehicle', select: 'type licensePlate' },
+                            { path: 'driver', select: 'name phoneNumber' }
+                        ]
+                    }
+                });
+        }
 
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
@@ -658,16 +675,25 @@ exports.updateBooking = async (req, res) => {
     try {
         const { paymentStatus, approvalStatus } = req.body;
         const updateData = {};
-        
         if (paymentStatus) updateData.paymentStatus = paymentStatus;
         if (approvalStatus) updateData.approvalStatus = approvalStatus;
 
-        const booking = await Booking.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        ).populate({ path: 'user', select: 'name email' })
-         .populate({ path: 'provider', select: 'name' });
+        let booking;
+        if (req.user.role === 'admin') {
+            booking = await Booking.findByIdAndUpdate(
+                req.params.id,
+                updateData,
+                { new: true, runValidators: true }
+            ).lean();
+        } else {
+            booking = await Booking.findByIdAndUpdate(
+                req.params.id,
+                updateData,
+                { new: true, runValidators: true }
+            )
+            .populate({ path: 'user', select: 'name email' })
+            .populate({ path: 'provider', select: 'name' });
+        }
 
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
