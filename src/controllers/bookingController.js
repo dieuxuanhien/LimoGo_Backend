@@ -251,7 +251,7 @@ exports.getMyBookings = async (req, res) => {
         // 3. Thực hiện truy vấn để lấy tất cả các đơn hàng
         const bookings = await Booking.find(filter)
             .populate({ path: 'user', select: 'name phoneNumber email' }) // Populate thông tin người dùng
-            .populate({ path: 'provider', select: 'name phoneNumber' }) // Populate thông tin nhà xe
+            .populate({ path: 'provider', select: 'name phone' }) // Populate thông tin nhà xe
             .populate(ticketsPopulateOptions)
             .sort({ createdAt: -1 })
             .lean();
