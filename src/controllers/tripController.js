@@ -106,9 +106,9 @@ const getTripById = async (req, res) => {
     try {
         let trip;
         if (req.user.role === 'admin') {
-            trip = await Trip.findById(req.params.id).lean();
+            trip = await Trip.findById(req.params.tripId);
         } else {
-            trip = await Trip.findById(req.params.id)
+            trip = await Trip.findById(req.params.tripId)
                 .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
                 .populate('vehicle')
                 .populate('driver')
@@ -133,7 +133,7 @@ const getTripById = async (req, res) => {
 
 const updateTrip = async (req, res) => {
     try {
-        const trip = await Trip.findById(req.params.id);
+        const trip = await Trip.findById(req.params.tripId);
         if (!trip){
             return res.status(404).json({ success: false, message: 'Trip not found' });
         }
@@ -150,7 +150,7 @@ const updateTrip = async (req, res) => {
         // Loại bỏ các trường undefined để không ghi đè giá trị cũ
         Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
-        const updatedTrip = await Trip.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true })
+        const updatedTrip = await Trip.findByIdAndUpdate(req.params.tripId, updateData, { new: true, runValidators: true })
             .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
             .populate('vehicle')
             .populate('driver')
@@ -175,7 +175,7 @@ const updateTrip = async (req, res) => {
 
 const deleteTrip = async (req, res) => {
     try {
-        const trip = await Trip.findById(req.params.id);
+        const trip = await Trip.findById(req.params.tripId);
         if (!trip){
             return res.status(404).json({ success: false, message: 'Trip not found' });
         }
@@ -185,7 +185,7 @@ const deleteTrip = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Forbidden: Not your trip' });
         }
 
-        await Trip.findByIdAndDelete(req.params.id);
+        await Trip.findByIdAndDelete(req.params.tripId);
         res.status(200).json({ success: true, message: 'Trip deleted successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

@@ -15,7 +15,7 @@ const storage = multer.diskStorage({
     filename: function (req, file, cb) {
         // Sửa lỗi: Tạo tên file duy nhất đơn giản và đúng đắn hơn
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+        cb(null, file.fieldname + '-' + uniqueSuffix + '.png');
     }
 });
 
@@ -46,9 +46,9 @@ exports.uploadImage = (fieldName) => (req, res, next) => {
             // Xử lý các lỗi từ Multer
             return res.status(400).json({ success: false, message: err.message });
         }
-        // Xây dựng URL để lưu vào DB, khớp với cấu hình static file
+        // Xây dựng URL để lưu vào DB với đường dẫn /public/
         if (req.file) {
-            req.file.url = `/uploads/images/${req.file.filename}`;
+            req.file.path = `/public/uploads/images/${req.file.filename}`;
         }
         next();
     });

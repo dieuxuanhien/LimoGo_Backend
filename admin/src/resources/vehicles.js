@@ -75,7 +75,7 @@ export const VehicleEdit = (props) => (
         choices={[
           { id: 'active', name: 'Active' },
           { id: 'maintenance', name: 'Maintenance' },
-          { id: 'inactive', name: 'Inactive' },
+          { id: 'in-use', name: 'In Use' },
         ]}
       />
       <ReferenceInput source="provider" reference="providers">

@@ -50,11 +50,11 @@ exports.validateRouteUpdate = [
     // 1. Chặn việc thay đổi bến xe.
     // Nếu các trường này tồn tại trong body, báo lỗi ngay lập tức.
     body('originStation')
-        .not().exists()
+        .exists()
         .withMessage('Không được phép thay đổi bến đi.'),
 
     body('destinationStation')
-        .not().exists()
+        .exists()
         .withMessage('Không được phép thay đổi bến đến.'),
 
     // 2. Kiểm tra các trường được phép cập nhật (nếu chúng tồn tại trong body).

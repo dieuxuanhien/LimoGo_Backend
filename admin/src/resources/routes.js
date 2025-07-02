@@ -54,12 +54,6 @@ export const RouteList = (props) => (
 export const RouteEdit = (props) => (
   <Edit {...props}>
     <SimpleForm>
-      <ReferenceInput source="originStation" reference="stations">
-        <SelectInput optionText="name" />
-      </ReferenceInput>
-      <ReferenceInput source="destinationStation" reference="stations">
-        <SelectInput optionText="name" />
-      </ReferenceInput>
       <NumberInput source="distanceKm" />
       <NumberInput source="estimatedDurationMin" />
       <ReferenceInput source="ownerProvider" reference="providers" allowEmpty>

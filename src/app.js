@@ -47,8 +47,10 @@ app.use('/api/users', userRouter);
 app.use('/api/vehicles', vehicleRouter);
 
 // --- Static Files ---
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Add this new line to match your URL format
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 
 // Check if admin build exists, if not show development message

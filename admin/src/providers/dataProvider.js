@@ -107,19 +107,77 @@ getMany: (resource, params) => {
     });
   },
   
-  update: (resource, params) => {
-  return httpClient(`${apiUrl}/${resource}/${params.id}`, {
-    method: 'PATCH', // Changed from PUT to PATCH
-    body: JSON.stringify(params.data),
-  }).then(({ json }) => {
-    const record = json.data || json;
-    return {
-      data: {
-        ...record,
-        id: record._id || record.id
+// Find the update method in your dataProvider and replace it with this:
+
+update: (resource, params) => {
+  // Special handling for resources with file uploads like vehicles
+  if (params.data.image && params.data.image.rawFile) {
+    // Handle file upload with FormData
+    const formData = new FormData();
+    
+    // Add all non-file fields to formData
+    Object.keys(params.data).forEach(key => {
+      // Skip the file field and handle it separately
+      if (key !== 'image' && params.data[key] !== undefined && params.data[key] !== null) {
+        // Handle references (objects with ids)
+        if (key === 'provider' || key === 'currentStation') {
+          formData.append(key, params.data[key].id || params.data[key]);
+        } else {
+          formData.append(key, params.data[key]);
+        }
       }
+    });
+    
+    // Add the file
+    formData.append('image', params.data.image.rawFile);
+
+    return httpClient(`${apiUrl}/${resource}/${params.id}`, {
+      method: 'PATCH',
+      body: formData, // No JSON.stringify for FormData
+    }).then(({ json }) => ({
+      data: normalizeData(json.data || json),
+    }));
+  }
+  
+  // Regular update without file
+  const updateData = { ...params.data };
+  
+  // Fix status field to match backend expectations
+  if (resource === 'vehicles' && updateData.status) {
+    // Map the admin UI values to backend values if needed
+    const statusMap = {
+      'active': 'available',
+      'inactive': 'inactive',
+      'maintenance': 'maintenance'
     };
-  });
+    
+    if (statusMap[updateData.status]) {
+      updateData.status = statusMap[updateData.status];
+    }
+  }
+  
+  // Remove fields we don't want to send
+  delete updateData.id;
+  delete updateData._id;
+  delete updateData.createdAt;
+  delete updateData.updatedAt;
+  
+  // Handle references - convert from id to _id format
+  if (updateData.provider && typeof updateData.provider === 'object') {
+    updateData.provider = updateData.provider.id || updateData.provider._id;
+  }
+  
+  if (updateData.currentStation && typeof updateData.currentStation === 'object') {
+    updateData.currentStation = updateData.currentStation.id || updateData.currentStation._id;
+  }
+
+  return httpClient(`${apiUrl}/${resource}/${params.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updateData),
+    headers: new Headers({ 'Content-Type': 'application/json' }),
+  }).then(({ json }) => ({
+    data: normalizeData(json.data || json),
+  }));
 },
 
   delete: (resource, params) => {

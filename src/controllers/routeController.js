@@ -64,8 +64,8 @@ exports.getRouteById = catchAsync(async (req, res, next) => {
 
 // Tạo route với logic phân quyền
 exports.createRoute = catchAsync(async (req, res, next) => {
-    const { originStation, destinationStation, distanceKm, estimatedDurationMin } = req.body;
-    const routeData = { originStation, destinationStation, distanceKm, estimatedDurationMin };
+    const { originStation, destinationStation, distanceKm, estimatedDurationMin, ownerProvider } = req.body;
+    const routeData = { originStation, destinationStation, distanceKm, estimatedDurationMin , ownerProvider };
 
     // GIẢI THÍCH: Custom Validator đã đảm bảo các station hợp lệ.
     // Controller chỉ việc gán chủ sở hữu cho route mới.
@@ -86,7 +86,7 @@ exports.createRoute = catchAsync(async (req, res, next) => {
 exports.updateRoute = catchAsync(async (req, res, next) => {
     // Middleware checkRouteOwnership đã tìm, xác thực quyền,
     // và gắn tài nguyên vào req.route.
-    const allowedFields = [ 'distanceKm', 'estimatedDurationMin'];
+    const allowedFields = [ 'originStation', 'destinationStation', 'distanceKm', 'estimatedDurationMin', 'ownerProvider'];
 
     const filterBody = filterObject(req.body, ...allowedFields);
 
