@@ -23,24 +23,14 @@ import {
 const VehicleFilter = (props) => (
   <Filter {...props}>
     <TextInput label="License Plate" source="licensePlate" alwaysOn />
-    <SelectInput
-      label="Type"
-      source="type"
-      choices={[
-        { id: 'sedan', name: 'Sedan' },
-        { id: 'suv', name: 'SUV' },
-        { id: 'van', name: 'Van' },
-        { id: 'bus', name: 'Bus' },
-        { id: 'minibus', name: 'Minibus' },
-      ]}
-    />
+    <TextInput label="Type" source="type" />
     <SelectInput
       label="Status"
       source="status"
       choices={[
-        { id: 'active', name: 'Active' },
+        { id: 'available', name: 'Available' },
+        { id: 'in-use', name: 'In Use' },
         { id: 'maintenance', name: 'Maintenance' },
-        { id: 'inactive', name: 'Inactive' },
       ]}
     />
     <ReferenceInput source="provider" reference="providers">
@@ -76,16 +66,7 @@ export const VehicleEdit = (props) => (
   <Edit {...props}>
     <SimpleForm>
       <TextInput source="licensePlate" />
-      <SelectInput
-        source="type"
-        choices={[
-          { id: 'sedan', name: 'Sedan' },
-          { id: 'suv', name: 'SUV' },
-          { id: 'van', name: 'Van' },
-          { id: 'bus', name: 'Bus' },
-          { id: 'minibus', name: 'Minibus' },
-        ]}
-      />
+      <TextInput source="type" />
       <TextInput source="manufacturer" />
       <TextInput source="model" />
       <NumberInput source="capacity" />
@@ -114,28 +95,19 @@ export const VehicleCreate = (props) => (
   <Create {...props}>
     <SimpleForm>
       <TextInput source="licensePlate" required />
-      <SelectInput
-        source="type"
-        choices={[
-          { id: 'sedan', name: 'Sedan' },
-          { id: 'suv', name: 'SUV' },
-          { id: 'van', name: 'Van' },
-          { id: 'bus', name: 'Bus' },
-          { id: 'minibus', name: 'Minibus' },
-        ]}
-        required
-      />
+      <TextInput source="type" required />
       <TextInput source="manufacturer" />
       <TextInput source="model" />
       <NumberInput source="capacity" />
       <SelectInput
         source="status"
+       
         choices={[
-          { id: 'active', name: 'Active' },
+          { id: 'available', name: 'Available' },
+          { id: 'in-use', name: 'In Use' },
           { id: 'maintenance', name: 'Maintenance' },
-          { id: 'inactive', name: 'Inactive' },
         ]}
-        defaultValue="active"
+        defaultValue="available"
       />
       <ReferenceInput source="provider" reference="providers" required>
         <SelectInput optionText="name" />

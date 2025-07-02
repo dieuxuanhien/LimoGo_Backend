@@ -156,3 +156,42 @@ exports.deleteReview = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
     }
 };
+
+
+
+/**
+ * @desc    Kiểm tra người dùng hiện tại có thể review một chuyến đi không
+ * @route   GET /api/booking/can-review/:tripId
+ * @access  Private (User)
+ */
+exports.canReviewTrip = async (req, res) => {
+    const userId = req.user._id;
+    const { tripId } = req.params;
+
+    try {
+        // 1. Kiểm tra trạng thái trip
+        const trip = await Trip.findById(tripId).select('status');
+        if (!trip) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy chuyến đi.' });
+        }
+        if (trip.status !== 'completed') {
+            return res.status(400).json({ success: false, message: 'Chuyến đi chưa hoàn thành.' });
+        }
+
+        // 2. Kiểm tra user có vé booked của trip này không
+        const ticket = await Ticket.findOne({
+            trip: tripId,
+            user: userId,
+            status: 'booked'
+        });
+
+        if (!ticket) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền review chuyến đi này.' });
+        }
+
+        // 3. Đủ điều kiện review
+        return res.status(200).json({ success: true, canReview: true });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+    }
+};

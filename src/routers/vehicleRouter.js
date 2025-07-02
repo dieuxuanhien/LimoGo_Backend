@@ -22,8 +22,8 @@ router.post(
   '/', 
   authAccess,
   imageUploader.uploadImage('image'),
-  validateVehicleCreation,
-  handleValidationErrors,
+  // validateVehicleCreation,
+  // handleValidationErrors,
   vehicleController.createVehicle
 );
 
@@ -35,8 +35,8 @@ router.patch(
   '/:id', 
   ownershipCheckAccess, // Sử dụng chuỗi middleware đã bao gồm check ownership
   imageUploader.uploadImage('image'),
-  validateVehicleUpdate,
-  handleValidationErrors,
+  // validateVehicleUpdate,
+  // handleValidationErrors,
   vehicleController.updateVehicle
 );
 

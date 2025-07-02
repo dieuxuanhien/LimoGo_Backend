@@ -52,8 +52,6 @@ router.get(
     '/:id', 
     loggedin, 
     ensureRole(['admin']), 
-    validateUserIdInParams,
-    handleValidationErrors,
     userController.getUserById
 );
 
@@ -61,8 +59,7 @@ router.post(
     '/', 
     loggedin, 
     ensureRole(['admin']), 
-    validateCreateUser,
-    handleValidationErrors,
+   
     userController.createUser
 );
 
@@ -70,9 +67,6 @@ router.patch(
     '/:id', 
     loggedin, 
     ensureRole(['admin']),
-    validateUserIdInParams,
-    validateUpdateUser,
-    handleValidationErrors, 
     userController.updateUser
 );
 
@@ -80,8 +74,6 @@ router.delete(
     '/:id', 
     loggedin, 
     ensureRole(['admin']), 
-    validateUserIdInParams,
-    handleValidationErrors,
     userController.deleteUser
 );
 

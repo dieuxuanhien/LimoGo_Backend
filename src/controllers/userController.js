@@ -186,10 +186,10 @@ exports.updateUser = catchAsync(async (req, res, next) => {
 
 exports.deleteUser = catchAsync(async (req, res, next) => {
     // Validator đã gắn user vào req.foundUser
-    const user = req.foundUser;
-    
-    await User.findByIdAndDelete(user._id);
-    
+    const user = req.params.id;
+
+    await User.findByIdAndDelete(user);
+
     res.status(200).json({
         success: true,
         message: 'Xóa người dùng thành công.',

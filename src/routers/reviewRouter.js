@@ -7,6 +7,13 @@ const { loggedin, ensureRole } = require('../middlewares/identification');
 const { validateCreateReview, validateUpdateReview, validateReviewIdInParams } = require('../validators/reviewValidator');
 const { handleValidationErrors } = require('../middlewares/validationHandler');
 
+// Kiểm tra xem người dùng có thể review chuyến đi hay không.
+router.get(
+    '/can-review/:tripId',
+    loggedin,
+    reviewController.canReviewTrip
+);
+
 // Tạo một review mới
 router.post(
     '/',
