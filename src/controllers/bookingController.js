@@ -260,6 +260,7 @@ exports.getMyBookings = async (req, res) => {
         const formattedBookings = bookings.map(booking => {
             const firstTicket = booking.tickets && booking.tickets[0];
             const tripInfo = firstTicket && firstTicket.trip ? {
+                _id: firstTicket.trip._id,
                 origin: firstTicket.trip.route?.originStation?.name,
                 destination: firstTicket.trip.route?.destinationStation?.name,
                 departureTime: firstTicket.trip.departureTime,
@@ -280,7 +281,8 @@ exports.getMyBookings = async (req, res) => {
                 tickets: booking.tickets.map(ticket => {
                     const ticketData = {
                         seatNumber: ticket.seatNumber,
-                        price: ticket.price
+                        price: ticket.price,
+                        _id: ticket._id,
                     };
                     if (ticket.status === 'booked') {
                         ticketData.accessId = ticket.accessId;

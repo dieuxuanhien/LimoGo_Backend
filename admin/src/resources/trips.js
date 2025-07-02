@@ -22,9 +22,25 @@ import {
 const TripFilter = (props) => (
   <Filter {...props}>
     <ReferenceInput label="Route" source="route" reference="routes" alwaysOn>
-      <SelectInput optionText={(record) => 
-        record ? `${record.originStation.name} -> ${record.destinationStation.name}` : ''
-      } />
+      <SelectInput 
+      
+      // Update in TripList, TripFilter, TripEdit, and TripCreate components
+
+        optionText={(record) => {
+          if (!record) return '';
+          
+          // Handle populated objects (for non-admin users)
+          if (record.originStation && typeof record.originStation === 'object' && 
+              record.destinationStation && typeof record.destinationStation === 'object') {
+            return `${record.originStation.name} -> ${record.destinationStation.name}`;
+          }
+          
+          // Handle IDs only (for admin users)
+          return `Route ${record.id || record._id}`;
+        }}
+      
+      
+      />
     </ReferenceInput>
     <SelectInput
       label="Status"
@@ -71,13 +87,29 @@ export const TripList = (props) => (
   </List>
 );
 
+
 export const TripEdit = (props) => (
   <Edit {...props}>
     <SimpleForm>
       <ReferenceInput source="route" reference="routes">
-        <SelectInput optionText={(record) => 
-          record ? `${record.originStation?.name} -> ${record.destinationStation?.name}` : ''
-        } />
+        <SelectInput 
+            // Update in TripList, TripFilter, TripEdit, and TripCreate components
+
+              optionText={(record) => {
+                if (!record) return '';
+                
+                // Handle populated objects (for non-admin users)
+                if (record.originStation && typeof record.originStation === 'object' && 
+                    record.destinationStation && typeof record.destinationStation === 'object') {
+                  return `${record.originStation.name} -> ${record.destinationStation.name}`;
+                }
+                
+                // Handle IDs only (for admin users)
+                return `Route ${record.id || record._id}`;
+              }}
+
+
+        />
       </ReferenceInput>
       <ReferenceInput source="vehicle" reference="vehicles">
         <SelectInput optionText="licensePlate" />
@@ -108,9 +140,24 @@ export const TripCreate = (props) => (
   <Create {...props}>
     <SimpleForm>
       <ReferenceInput source="route" reference="routes" required>
-        <SelectInput optionText={(record) => 
-          record ? `${record.originStation?.name} -> ${record.destinationStation?.name}` : ''
-        } />
+        <SelectInput 
+          // Update in TripList, TripFilter, TripEdit, and TripCreate components
+
+            optionText={(record) => {
+              if (!record) return '';
+              
+              // Handle populated objects (for non-admin users)
+              if (record.originStation && typeof record.originStation === 'object' && 
+                  record.destinationStation && typeof record.destinationStation === 'object') {
+                return `${record.originStation.name} -> ${record.destinationStation.name}`;
+              }
+              
+              // Handle IDs only (for admin users)
+              return `Route ${record.id || record._id}`;
+            }}
+        
+        
+        />
       </ReferenceInput>
       <ReferenceInput source="vehicle" reference="vehicles" required>
         <SelectInput optionText="licensePlate" />
