@@ -113,7 +113,7 @@ exports.validateUpdateUser = [
 // === VALIDATION CHO USER TỰ CẬP NHẬT THÔNG TIN (/updateMe) ===
 exports.validateUpdateMe = [
     body('name').optional().trim().notEmpty().withMessage('Tên không được để trống'),
-    body('gender').optional().isIn(['Male', 'Female', 'Khác']).withMessage("Giới tính không hợp lệ"),
+    body('gender').optional().isIn(['Male', 'Female', 'Others']).withMessage("Giới tính không hợp lệ"),
     body('dateOfBirth').optional().isISO8601().withMessage('Ngày sinh phải có định dạng YYYY-MM-DD').toDate(),
     
     // Kiểm tra để người dùng không tự ý thay đổi các trường nhạy cảm
