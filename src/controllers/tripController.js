@@ -109,7 +109,7 @@ const getTripById = async (req, res) => {
             trip = await Trip.findById(req.params.tripId);
         } else {
             trip = await Trip.findById(req.params.tripId)
-                .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
+                .populate({ path: 'route', populate: [{ path: 'originStation', select: 'name address' }, { path: 'destinationStation', select: 'name address' }] })
                 .populate('vehicle')
                 .populate('driver')
                 .populate('provider');
@@ -285,8 +285,8 @@ const searchTripsByCity = async (req, res) => {
         .populate({
             path: 'route',
             populate: [
-                { path: 'originStation', select: 'name city' },
-                { path: 'destinationStation', select: 'name city' }
+                { path: 'originStation', select: 'name city address' },
+                { path: 'destinationStation', select: 'name city address' }
             ]
                 
         })
