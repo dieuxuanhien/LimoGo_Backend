@@ -4,6 +4,7 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
 const { filterObject } = require('../utils/helpers'); 
+const user = require('../models/user');
 
 
 // Lấy danh sách các station với logic phân quyền
@@ -56,6 +57,12 @@ exports.getStationById = catchAsync(async (req, res, next) => {
 
 // Tạo station mới với logic 3 trạng thái
 exports.createStation = catchAsync(async (req, res, next) => {
+
+    if (user.role === 'admin'){
+        const user = await user.create(req.body);
+        return res.status(201).json({ success: true, data: user });
+    }
+
     const { name, address, city, isPrivate } = req.body;
 
     // Trường hợp 1: Provider tạo điểm đón riêng
@@ -89,8 +96,14 @@ exports.createStation = catchAsync(async (req, res, next) => {
 
 // Cập nhật station với quy tắc phân quyền nghiêm ngặt
 exports.updateStation = catchAsync(async (req, res, next) => {
+
+
+    if (user.role === 'admin'){
+        const user = await user.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        res.status(200).json({ success: true, data: user });
+    }
     const stationId = req.params.id;
-    const { role } = req.user;
+    const role = req.user.userRole;
 
     const stationToUpdate = await Station.findById(stationId);
     if (!stationToUpdate) {
