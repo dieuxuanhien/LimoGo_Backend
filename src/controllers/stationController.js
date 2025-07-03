@@ -8,10 +8,13 @@ const { filterObject } = require('../utils/helpers');
 
 // Lấy danh sách các station với logic phân quyền
 exports.getAllStations = catchAsync(async (req, res, next) => {
-    let filter = {};
+    // 1. Lấy các tham số phân trang từ query string, gán giá trị mặc định nếu không có
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    // GIẢI THÍCH: Logic phân quyền truy cập dữ liệu
-    // Nếu là provider, họ chỉ thấy các bến xe chính VÀ các điểm đón của chính họ.
+    // 2. Giữ nguyên logic lọc dữ liệu dựa trên vai trò 'provider'
+    let filter = {};
     if (req.user.role === 'provider') {
         filter = {
             $or: [
@@ -20,22 +23,35 @@ exports.getAllStations = catchAsync(async (req, res, next) => {
             ]
         };
     }
-    // Nếu là admin, filter sẽ là {} và họ thấy tất cả.
-    // Nếu là customer, họ cũng thấy tất cả (để phục vụ tìm kiếm).
 
-    let stations;
-    if (req.user.role === 'admin') {
-        stations = await Station.find(filter)
-            .select('name city address type ownerProvider');
-    } else {
-        stations = await Station.find(filter)
-            .select('name city address type ownerProvider')
-            .populate('ownerProvider', 'name');
+    // 3. Xây dựng câu truy vấn cơ bản mà không thực thi ngay
+    let query = Station.find(filter)
+        .sort({ createdAt: -1 }) // Sắp xếp theo ngày tạo mới nhất
+        .skip(skip)
+        .limit(limit)
+        .lean(); // Dùng .lean() để tăng tốc các truy vấn chỉ đọc
+
+    // 4. Áp dụng populate có điều kiện: chỉ không populate khi là admin
+    if (req.user.role !== 'admin') {
+        query = query.populate('ownerProvider', 'name');
     }
 
+    // 5. Thực thi song song 2 câu lệnh: một để lấy dữ liệu, một để đếm tổng số
+    const [stations, totalCount] = await Promise.all([
+        query, // thực thi câu lệnh đã xây dựng ở trên
+        Station.countDocuments(filter) // đếm tổng số document khớp với bộ lọc
+    ]);
+    
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // 6. Trả về response với cấu trúc dữ liệu phân trang
     res.status(200).json({
         success: true,
-        totalCount: stations.length,
+        pagination: {
+            totalCount,
+            totalPages,
+            currentPage: page
+        },
         data: stations
     });
 });
