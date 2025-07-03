@@ -513,6 +513,34 @@ exports.handleReturnResponse = async (req, res) => {
 
 }
 
+exports.isBookingRefundable = async (req, res) => {
+    const bookingId = req.params.bookingId;
+    const booking = await Booking.findById(bookingId);
+    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'approved') {
+        return res.json({ success: false, canRefund: false, reason: 'Đơn hàng không hợp lệ hoặc chưa thanh toán' });
+    }
+    const tickets = await Ticket.find({ booking: bookingId }).populate('trip');
+    if (!tickets || tickets.length === 0) {
+        return res.json({ success: false, canRefund: false, reason: 'Không tìm thấy vé liên quan đến đơn hàng.' });
+    }
+    for (const ticket of tickets) {
+        if (!ticket.trip || ticket.trip.status !== 'scheduled') {
+            return res.json({ success: true, canRefund: false, reason: 'Không thể hoàn tiền cho vé này' });
+        }
+        const departureTime = ticket.trip.departureTime;
+        if (!departureTime) {
+            return res.json({ success: false, canRefund: false, reason: 'Chuyến xe chưa có thời gian khởi hành.' });
+        }
+        const now = new Date();
+        const diffMs = new Date(departureTime) - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours < 12) {
+            return res.json({ success: true, canRefund: false, reason: 'Chỉ được hoàn tiền trước giờ khởi hành ít nhất 12 tiếng.' });
+        }
+    }
+    return res.json({ success: true, canRefund: true });
+};
+
 
 exports.refundPayment = async (req, res) => {
     const bookingId = req.body.bookingId;
