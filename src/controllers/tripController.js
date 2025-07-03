@@ -15,6 +15,10 @@ const Review = require('../models/review');
 
 const createTrip = async (req, res) => {
     try {
+        if (req.user.role == 'admin') {
+            const trip = await Trip.create(req.body);
+            return res.status(201).json({ success: true, data: trip });
+        }
         // Chống Mass Assignment: Chỉ lấy các trường được phép
         const { route, vehicle, driver, departureTime, arrivalTime, price, status } = req.body;
         const allowedData = { route, vehicle, driver, departureTime, arrivalTime, price, status };
@@ -133,6 +137,10 @@ const getTripById = async (req, res) => {
 
 const updateTrip = async (req, res) => {
     try {
+        if (req.user.role === 'admin'){
+            const trip = await Trip.findByIdAndUpdate(req.params.tripId, req.body, { new: true, runValidators: true });
+            return res.status(200).json({ success: true, data: trip });
+        }
         const trip = await Trip.findById(req.params.tripId);
         if (!trip){
             return res.status(404).json({ success: false, message: 'Trip not found' });
@@ -229,6 +237,7 @@ const searchTripsByCity = async (req, res) => {
     // --- Bước 1: Lấy dữ liệu đã được "làm sạch" và kiểm tra bởi validator ---
         const { originCity, destinationCity, departureDate } = req.query;
 
+
     // --- Bước 2: Tìm kiếm ID các trạm ở thành phố đi và đến (chạy song song) ---
         const [ originStation, destinationStation ] = await Promise.all([
             Station.find( { city: originCity }).select('_id').lean(),
@@ -285,14 +294,13 @@ const searchTripsByCity = async (req, res) => {
         .populate({
             path: 'route',
             populate: [
-                { path: 'originStation', select: 'name city address' },
-                { path: 'destinationStation', select: 'name city address' }
+                { path: 'originStation', select: 'name city address coordinates' },
+                { path: 'destinationStation', select: 'name city address coordinates' }
             ]
                 
         })
         .populate('vehicle', 'type licensePlate capacity image')
         .populate('provider', 'name phone');
-
         if (trips.length === 0) {
             return res.status(404).json({
                 success: false,

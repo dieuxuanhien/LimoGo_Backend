@@ -59,7 +59,7 @@ exports.getStationById = catchAsync(async (req, res, next) => {
 exports.createStation = catchAsync(async (req, res, next) => {
 
     if (req.user.role === 'admin'){
-        const station = await Station.create(req.body);
+        const station = await Station.create(req.body , { runValidators: false });
         return res.status(201).json({ success: true, data: station });
     }
 
@@ -99,7 +99,7 @@ exports.updateStation = catchAsync(async (req, res, next) => {
 
 
     if (req.user.role === 'admin'){
-        const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: false });
         return res.status(200).json({ success: true, data: station });
     }
     

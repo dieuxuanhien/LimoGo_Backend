@@ -15,5 +15,5 @@ exports.validateStationUpdate = [
 
     // Ngăn người dùng thay đổi các trường quan trọng
     body('type').exists().withMessage('Không được phép thay đổi loại trạm.'),
-    body('ownerProvider').exists().withMessage('Không được phép thay đổi chủ sở hữu.')
+    //body('ownerProvider').exists().withMessage('Không được phép thay đổi chủ sở hữu.')
 ];

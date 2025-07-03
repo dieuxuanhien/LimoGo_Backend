@@ -8,7 +8,6 @@ import {
   DateField,
   Edit,
   SimpleForm,
-  TextInput,
   NumberInput,
   ReferenceInput,
   SelectInput,
@@ -17,7 +16,6 @@ import {
   SimpleShowLayout,
   Filter,
   DateTimeInput,
-  useGetMany,
   Loading,
   useGetList
 } from 'react-admin';
@@ -71,24 +69,6 @@ const RouteSelectInput = props => {
   );
 };
 
-// Original RouteNameField component
-const RouteNameField = ({ record }) => {
-  if (!record || !record.route) return null;
-  
-  // If route is already populated with station information
-  if (
-    record.route.originStation && 
-    typeof record.route.originStation === 'object' && 
-    record.route.destinationStation && 
-    typeof record.route.destinationStation === 'object'
-  ) {
-    return <span>{record.route.originStation.name} → {record.route.destinationStation.name}</span>;
-  }
-  
-  // Fallback to route ID
-  return <span>Route {record.route.id || record.route._id || record.route}</span>;
-};
-
 const TripFilter = (props) => (
   <Filter {...props}>
     <ReferenceInput label="Route" source="route" reference="routes" alwaysOn>
@@ -99,18 +79,18 @@ const TripFilter = (props) => (
       source="status"
       choices={[
         { id: 'scheduled', name: 'Scheduled' },
-        { id: 'in_progress', name: 'In Progress' },
+        { id: 'in-progress', name: 'In Progress' },
         { id: 'completed', name: 'Completed' },
         { id: 'cancelled', name: 'Cancelled' },
       ]}
     />
-    <ReferenceInput source="vehicle" reference="vehicles">
+    <ReferenceInput source="vehicle" reference="vehicles" label="Vehicle">
       <SelectInput optionText="licensePlate" />
     </ReferenceInput>
-    <ReferenceInput source="driver" reference="drivers">
+    <ReferenceInput source="driver" reference="drivers" label="Driver">
       <SelectInput optionText="name" />
     </ReferenceInput>
-    <ReferenceInput source="provider" reference="providers">
+    <ReferenceInput source="provider" reference="providers" label="Provider">
       <SelectInput optionText="name" />
     </ReferenceInput>
   </Filter>
@@ -119,7 +99,7 @@ const TripFilter = (props) => (
 export const TripList = (props) => (
   <List {...props} filters={<TripFilter />} sort={{ field: 'departureTime', order: 'DESC' }}>
     <Datagrid rowClick="show">
-       <ReferenceField
+      <ReferenceField
         source="route"
         reference="routes"
         label="Route"
@@ -133,17 +113,17 @@ export const TripList = (props) => (
           <TextField source="name" />
         </ReferenceField>
       </ReferenceField>
-      <ReferenceField source="vehicle" reference="vehicles">
+      <ReferenceField source="vehicle" reference="vehicles" label="Vehicle">
         <TextField source="licensePlate" />
       </ReferenceField>
-      <ReferenceField source="driver" reference="drivers">
+      <ReferenceField source="driver" reference="drivers" label="Driver">
         <TextField source="name" />
       </ReferenceField>
-      <DateField source="departureTime" showTime />
-      <DateField source="arrivalTime" showTime />
-      <NumberField source="price" options={{ style: 'currency', currency: 'VND' }} />
-      <TextField source="status" />
-      <ReferenceField source="provider" reference="providers">
+      <DateField source="departureTime" showTime label="Departure Time" />
+      <DateField source="arrivalTime" showTime label="Arrival Time" />
+      <NumberField source="price" options={{ style: 'currency', currency: 'VND' }} label="Price" />
+      <TextField source="status" label="Status" />
+      <ReferenceField source="provider" reference="providers" label="Provider">
         <TextField source="name" />
       </ReferenceField>
     </Datagrid>
@@ -156,30 +136,32 @@ export const TripEdit = (props) => (
       <ReferenceInput 
         source="route" 
         reference="routes"
+        label="Route"
         perPage={100}
         sort={{ field: 'createdAt', order: 'DESC' }}
       >
         <RouteSelectInput />
       </ReferenceInput>
-      <ReferenceInput source="vehicle" reference="vehicles">
+      <ReferenceInput source="vehicle" reference="vehicles" label="Vehicle">
         <SelectInput optionText="licensePlate" />
       </ReferenceInput>
-      <ReferenceInput source="driver" reference="drivers">
+      <ReferenceInput source="driver" reference="drivers" label="Driver">
         <SelectInput optionText="name" />
       </ReferenceInput>
-      <DateTimeInput source="departureTime" />
-      <DateTimeInput source="arrivalTime" />
-      <NumberInput source="price" />
+      <DateTimeInput source="departureTime" label="Departure Time" />
+      <DateTimeInput source="arrivalTime" label="Arrival Time" />
+      <NumberInput source="price" label="Price" />
       <SelectInput
         source="status"
+        label="Status"
         choices={[
           { id: 'scheduled', name: 'Scheduled' },
-          { id: 'in_progress', name: 'In Progress' },
+          { id: 'in-progress', name: 'In Progress' },
           { id: 'completed', name: 'Completed' },
           { id: 'cancelled', name: 'Cancelled' },
         ]}
       />
-      <ReferenceInput source="provider" reference="providers">
+      <ReferenceInput source="provider" reference="providers" label="Provider">
         <SelectInput optionText="name" />
       </ReferenceInput>
     </SimpleForm>
@@ -189,35 +171,37 @@ export const TripEdit = (props) => (
 export const TripCreate = (props) => (
   <Create {...props}>
     <SimpleForm>
-        <ReferenceInput 
+      <ReferenceInput 
         source="route" 
-        reference="routes" 
+        reference="routes"
+        label="Route" 
         required
         perPage={100}
         sort={{ field: 'createdAt', order: 'DESC' }}
       >
         <RouteSelectInput />
       </ReferenceInput>
-      <ReferenceInput source="vehicle" reference="vehicles" required>
+      <ReferenceInput source="vehicle" reference="vehicles" label="Vehicle" required>
         <SelectInput optionText="licensePlate" />
       </ReferenceInput>
-      <ReferenceInput source="driver" reference="drivers" required>
+      <ReferenceInput source="driver" reference="drivers" label="Driver" required>
         <SelectInput optionText="name" />
       </ReferenceInput>
-      <DateTimeInput source="departureTime" required />
-      <DateTimeInput source="arrivalTime" required />
-      <NumberInput source="price" required />
+      <DateTimeInput source="departureTime" label="Departure Time" required />
+      <DateTimeInput source="arrivalTime" label="Arrival Time" required />
+      <NumberInput source="price" label="Price" required />
       <SelectInput
         source="status"
+        label="Status"
         choices={[
           { id: 'scheduled', name: 'Scheduled' },
-          { id: 'in_progress', name: 'In Progress' },
+          { id: 'in-progress', name: 'In Progress' },
           { id: 'completed', name: 'Completed' },
           { id: 'cancelled', name: 'Cancelled' },
         ]}
         defaultValue="scheduled"
       />
-      <ReferenceInput source="provider" reference="providers" required>
+      <ReferenceInput source="provider" reference="providers" label="Provider" required>
         <SelectInput optionText="name" />
       </ReferenceInput>
     </SimpleForm>
@@ -227,8 +211,8 @@ export const TripCreate = (props) => (
 export const TripShow = (props) => (
   <Show {...props}>
     <SimpleShowLayout>
-      <TextField source="id" />
-      <ReferenceField source="route" reference="routes">
+      <TextField source="id" label="ID" />
+      <ReferenceField source="route" reference="routes" label="Route">
         <ReferenceField source="originStation" reference="stations" link={false}>
           <TextField source="name" />
         </ReferenceField>
@@ -237,21 +221,21 @@ export const TripShow = (props) => (
           <TextField source="name" />
         </ReferenceField>
       </ReferenceField>
-      <ReferenceField source="vehicle" reference="vehicles">
+      <ReferenceField source="vehicle" reference="vehicles" label="Vehicle">
         <TextField source="licensePlate" />
       </ReferenceField>
-      <ReferenceField source="driver" reference="drivers">
+      <ReferenceField source="driver" reference="drivers" label="Driver">
         <TextField source="name" />
       </ReferenceField>
-      <DateField source="departureTime" showTime />
-      <DateField source="arrivalTime" showTime />
-      <NumberField source="price" options={{ style: 'currency', currency: 'VND' }} />
-      <TextField source="status" />
-      <ReferenceField source="provider" reference="providers">
+      <DateField source="departureTime" showTime label="Departure Time" />
+      <DateField source="arrivalTime" showTime label="Arrival Time" />
+      <NumberField source="price" options={{ style: 'currency', currency: 'VND' }} label="Price" />
+      <TextField source="status" label="Status" />
+      <ReferenceField source="provider" reference="providers" label="Provider">
         <TextField source="name" />
       </ReferenceField>
-      <DateField source="createdAt" showTime />
-      <DateField source="updatedAt" showTime />
+      <DateField source="createdAt" showTime label="Created At" />
+      <DateField source="updatedAt" showTime label="Updated At" />
     </SimpleShowLayout>
   </Show>
 );
