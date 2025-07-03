@@ -14,6 +14,6 @@ exports.validateStationUpdate = [
     body('city').optional().trim().notEmpty().withMessage('Thành phố không được để trống.'),
 
     // Ngăn người dùng thay đổi các trường quan trọng
-    body('type').not().exists().withMessage('Không được phép thay đổi loại trạm.'),
-    body('ownerProvider').not().exists().withMessage('Không được phép thay đổi chủ sở hữu.')
+    body('type').exists().withMessage('Không được phép thay đổi loại trạm.'),
+    body('ownerProvider').exists().withMessage('Không được phép thay đổi chủ sở hữu.')
 ];
