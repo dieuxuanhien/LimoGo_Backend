@@ -51,6 +51,7 @@ router.get(
 router.get(
     '/:id', 
     loggedin, 
+
     ensureRole(['admin']), 
     userController.getUserById
 );

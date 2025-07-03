@@ -20,7 +20,6 @@ exports.validateProviderCreation = [
 
     body('phone')
             .optional()
-            .matches(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/).withMessage('Số điện thoại không hợp lệ')
             .custom(async (value, { req }) => {
                 // Kiểm tra SĐT mới có bị trùng với người dùng nào khác không
                 const provider = await Provider.findOne({ phoneNumber: value, _id: { $ne: req.params.id } });
@@ -58,7 +57,6 @@ exports.validateProviderUpdate = [
     body('phone')
         .optional()
         .notEmpty().withMessage('Số điện thoại là bắt buộc')
-        .matches(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/).withMessage('Số điện thoại không hợp lệ')
         .custom(async (value) => {
             // Kiểm tra SĐT đã tồn tại trong DB chưa
             const provider = await Provider.findOne({ phoneNumber: value });
@@ -75,7 +73,7 @@ exports.validateProviderUpdate = [
         .isIn(['active', 'inactive']).withMessage('Trạng thái không hợp lệ. Chỉ chấp nhận: active, inactive.'),
 
     body('mainUser')
-        .not().exists()
+        .exists()
         .withMessage('Không thể thay đổi người dùng chính qua endpoint này. Vui lòng sử dụng một chức năng khác.')
 ];
 
@@ -86,7 +84,7 @@ exports.validateProviderProfileUpdate = [
 
     body('phone')
         .optional()
-        .matches(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/).withMessage('Số điện thoại không hợp lệ')
+        
         .custom(async (value, { req }) => {
             // Kiểm tra SĐT mới có bị trùng với người dùng nào khác không
             const provider = await Provider.findOne({ phoneNumber: value, _id: { $ne: req.params.id } });
@@ -100,13 +98,13 @@ exports.validateProviderProfileUpdate = [
 
     // Các trường BỊ CẤM cập nhật
     body('email')
-        .not().exists()
+        .exists()
         .withMessage('Không được phép thay đổi email. Vui lòng liên hệ quản trị viên.'),
     body('status')
-        .not().exists()
+        .exists()
         .withMessage('Không được phép thay đổi trạng thái. Vui lòng liên hệ quản trị viên.'),
     body('mainUser')
-        .not().exists()
+        .exists()
         .withMessage('Không được phép thay đổi người dùng chính.')
 ];
 

@@ -28,7 +28,6 @@ const ProviderFilter = (props) => (
       source="status"
       choices={[
         { id: 'active', name: 'Active' },
-        { id: 'suspended', name: 'Suspended' },
         { id: 'inactive', name: 'Inactive' },
       ]}
     />
@@ -62,7 +61,6 @@ export const ProviderEdit = (props) => (
         source="status"
         choices={[
           { id: 'active', name: 'Active' },
-          { id: 'suspended', name: 'Suspended' },
           { id: 'inactive', name: 'Inactive' },
         ]}
       />
@@ -85,7 +83,6 @@ export const ProviderCreate = (props) => (
         source="status"
         choices={[
           { id: 'active', name: 'Active' },
-          { id: 'suspended', name: 'Suspended' },
           { id: 'inactive', name: 'Inactive' },
         ]}
         defaultValue="active"
