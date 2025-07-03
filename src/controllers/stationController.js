@@ -58,9 +58,9 @@ exports.getStationById = catchAsync(async (req, res, next) => {
 // Tạo station mới với logic 3 trạng thái
 exports.createStation = catchAsync(async (req, res, next) => {
 
-    if (user.role === 'admin'){
-        const user = await user.create(req.body);
-        return res.status(201).json({ success: true, data: user });
+    if (req.user.role === 'admin'){
+        const station = await Station.create(req.body);
+        return res.status(201).json({ success: true, data: station });
     }
 
     const { name, address, city, isPrivate } = req.body;
@@ -98,13 +98,13 @@ exports.createStation = catchAsync(async (req, res, next) => {
 exports.updateStation = catchAsync(async (req, res, next) => {
 
 
-    if (user.role === 'admin'){
-        const user = await user.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-        res.status(200).json({ success: true, data: user });
+    if (req.user.role === 'admin'){
+        const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        return res.status(200).json({ success: true, data: station });
     }
     
     const stationId = req.params.id;
-    const role = req.user.userRole;
+    const role = req.user.role;
 
     const stationToUpdate = await Station.findById(stationId);
     if (!stationToUpdate) {
