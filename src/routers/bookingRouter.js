@@ -29,6 +29,8 @@ router.get(
     '/vnpay_return',
     bookingController.handleReturnResponse
 )
+//PAYMENT REFUND
+router.post('/refund', loggedin , bookingController.refundPayment);
 
 router.get(
     '/:bookingId/payment-status',
