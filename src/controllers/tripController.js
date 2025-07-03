@@ -290,7 +290,8 @@ const searchTripsByCity = async (req, res) => {
             ]
                 
         })
-        .populate('vehicle', 'type licensePlate capacity image');
+        .populate('vehicle', 'type licensePlate capacity image')
+        .populate('provider', 'name phone');
 
         if (trips.length === 0) {
             return res.status(404).json({
