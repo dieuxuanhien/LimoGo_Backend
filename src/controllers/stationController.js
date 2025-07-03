@@ -1,5 +1,5 @@
 const Station = require('../models/station');
-const Itinerary = require('../models/itinerary');
+// const Itinerary = require('../models/itinerary');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
@@ -102,6 +102,7 @@ exports.updateStation = catchAsync(async (req, res, next) => {
         const user = await user.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         res.status(200).json({ success: true, data: user });
     }
+    
     const stationId = req.params.id;
     const role = req.user.userRole;
 
@@ -153,11 +154,11 @@ exports.deleteStation = catchAsync(async (req, res, next) => {
         return next(new AppError('Bạn không có quyền xóa tài nguyên chung của hệ thống.', 403));
     }
 
-    // Kiểm tra sự phụ thuộc trong các hành trình
-    const activeItinerary = await Itinerary.findOne({ 'stops.station': stationId });
-    if (activeItinerary) {
-        return next(new AppError('Không thể xóa vì đang có Hành trình sử dụng điểm đón/trả này.', 400));
-    }
+    // // Kiểm tra sự phụ thuộc trong các hành trình
+    // const activeItinerary = await Itinerary.findOne({ 'stops.station': stationId });
+    // if (activeItinerary) {
+    //     return next(new AppError('Không thể xóa vì đang có Hành trình sử dụng điểm đón/trả này.', 400));
+    // }
 
     await Station.findByIdAndDelete(stationId);
     res.status(204).json({ success: true, data: null });

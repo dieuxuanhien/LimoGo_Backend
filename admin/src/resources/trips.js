@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   List,
   Datagrid,
@@ -17,30 +17,82 @@ import {
   SimpleShowLayout,
   Filter,
   DateTimeInput,
+  useGetMany,
+  Loading,
+  useGetList
 } from 'react-admin';
+
+// Enhanced RouteSelectInput component that fetches station data
+const RouteSelectInput = props => {
+  const [stations, setStations] = useState({});
+  const { data: stationsData, isLoading } = useGetList(
+    'stations',
+    { 
+      pagination: { page: 1, perPage: 100 },
+      sort: { field: 'name', order: 'ASC' }
+    }
+  );
+  
+  useEffect(() => {
+    if (stationsData) {
+      const stationsMap = {};
+      Object.keys(stationsData).forEach(key => {
+        const station = stationsData[key];
+        stationsMap[station.id] = station;
+      });
+      setStations(stationsMap);
+    }
+  }, [stationsData]);
+
+  return isLoading ? (
+    <Loading />
+  ) : (
+    <SelectInput
+      {...props}
+      optionText={(record) => {
+        if (!record) return '';
+        
+        // Case 1: Fully populated objects
+        if (record.originStation && typeof record.originStation === 'object' && 
+            record.destinationStation && typeof record.destinationStation === 'object') {
+          return `${record.originStation.name} → ${record.destinationStation.name}`;
+        }
+        
+        // Case 2: We have station IDs and our station cache
+        if (record.originStation && record.destinationStation && 
+            stations[record.originStation] && stations[record.destinationStation]) {
+          return `${stations[record.originStation].name} → ${stations[record.destinationStation].name}`;
+        }
+        
+        // Fallback: Show route ID or available information
+        return `Route ${record.id || record._id}`;
+      }}
+    />
+  );
+};
+
+// Original RouteNameField component
+const RouteNameField = ({ record }) => {
+  if (!record || !record.route) return null;
+  
+  // If route is already populated with station information
+  if (
+    record.route.originStation && 
+    typeof record.route.originStation === 'object' && 
+    record.route.destinationStation && 
+    typeof record.route.destinationStation === 'object'
+  ) {
+    return <span>{record.route.originStation.name} → {record.route.destinationStation.name}</span>;
+  }
+  
+  // Fallback to route ID
+  return <span>Route {record.route.id || record.route._id || record.route}</span>;
+};
 
 const TripFilter = (props) => (
   <Filter {...props}>
     <ReferenceInput label="Route" source="route" reference="routes" alwaysOn>
-      <SelectInput 
-      
-      // Update in TripList, TripFilter, TripEdit, and TripCreate components
-
-        optionText={(record) => {
-          if (!record) return '';
-          
-          // Handle populated objects (for non-admin users)
-          if (record.originStation && typeof record.originStation === 'object' && 
-              record.destinationStation && typeof record.destinationStation === 'object') {
-            return `${record.originStation.name} -> ${record.destinationStation.name}`;
-          }
-          
-          // Handle IDs only (for admin users)
-          return `Route ${record.id || record._id}`;
-        }}
-      
-      
-      />
+      <RouteSelectInput />
     </ReferenceInput>
     <SelectInput
       label="Status"
@@ -67,8 +119,19 @@ const TripFilter = (props) => (
 export const TripList = (props) => (
   <List {...props} filters={<TripFilter />} sort={{ field: 'departureTime', order: 'DESC' }}>
     <Datagrid rowClick="show">
-      <ReferenceField source="route" reference="routes">
-        <TextField source="id" />
+       <ReferenceField
+        source="route"
+        reference="routes"
+        label="Route"
+        link={false}
+      >
+        <ReferenceField source="originStation" reference="stations" link={false}>
+          <TextField source="name" />
+        </ReferenceField>
+        {" → "}
+        <ReferenceField source="destinationStation" reference="stations" link={false}>
+          <TextField source="name" />
+        </ReferenceField>
       </ReferenceField>
       <ReferenceField source="vehicle" reference="vehicles">
         <TextField source="licensePlate" />
@@ -87,29 +150,16 @@ export const TripList = (props) => (
   </List>
 );
 
-
 export const TripEdit = (props) => (
   <Edit {...props}>
     <SimpleForm>
-      <ReferenceInput source="route" reference="routes">
-        <SelectInput 
-            // Update in TripList, TripFilter, TripEdit, and TripCreate components
-
-              optionText={(record) => {
-                if (!record) return '';
-                
-                // Handle populated objects (for non-admin users)
-                if (record.originStation && typeof record.originStation === 'object' && 
-                    record.destinationStation && typeof record.destinationStation === 'object') {
-                  return `${record.originStation.name} -> ${record.destinationStation.name}`;
-                }
-                
-                // Handle IDs only (for admin users)
-                return `Route ${record.id || record._id}`;
-              }}
-
-
-        />
+      <ReferenceInput 
+        source="route" 
+        reference="routes"
+        perPage={100}
+        sort={{ field: 'createdAt', order: 'DESC' }}
+      >
+        <RouteSelectInput />
       </ReferenceInput>
       <ReferenceInput source="vehicle" reference="vehicles">
         <SelectInput optionText="licensePlate" />
@@ -139,25 +189,14 @@ export const TripEdit = (props) => (
 export const TripCreate = (props) => (
   <Create {...props}>
     <SimpleForm>
-      <ReferenceInput source="route" reference="routes" required>
-        <SelectInput 
-          // Update in TripList, TripFilter, TripEdit, and TripCreate components
-
-            optionText={(record) => {
-              if (!record) return '';
-              
-              // Handle populated objects (for non-admin users)
-              if (record.originStation && typeof record.originStation === 'object' && 
-                  record.destinationStation && typeof record.destinationStation === 'object') {
-                return `${record.originStation.name} -> ${record.destinationStation.name}`;
-              }
-              
-              // Handle IDs only (for admin users)
-              return `Route ${record.id || record._id}`;
-            }}
-        
-        
-        />
+        <ReferenceInput 
+        source="route" 
+        reference="routes" 
+        required
+        perPage={100}
+        sort={{ field: 'createdAt', order: 'DESC' }}
+      >
+        <RouteSelectInput />
       </ReferenceInput>
       <ReferenceInput source="vehicle" reference="vehicles" required>
         <SelectInput optionText="licensePlate" />
@@ -190,7 +229,13 @@ export const TripShow = (props) => (
     <SimpleShowLayout>
       <TextField source="id" />
       <ReferenceField source="route" reference="routes">
-        <TextField source="id" />
+        <ReferenceField source="originStation" reference="stations" link={false}>
+          <TextField source="name" />
+        </ReferenceField>
+        {" → "}
+        <ReferenceField source="destinationStation" reference="stations" link={false}>
+          <TextField source="name" />
+        </ReferenceField>
       </ReferenceField>
       <ReferenceField source="vehicle" reference="vehicles">
         <TextField source="licensePlate" />

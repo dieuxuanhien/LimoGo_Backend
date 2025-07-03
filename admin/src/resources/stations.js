@@ -25,7 +25,8 @@ const StationFilter = (props) => (
       source="type"
       choices={[
         { id: 'main_station', name: 'Main Station' },
-        { id: 'pickup_point', name: 'Pickup Point' },
+        { id: 'shared_point', name: 'Shareds Point' },
+        { id: 'private_point', name: 'Private Point' },
       ]}
     />
     <ReferenceInput source="ownerProvider" reference="providers">
@@ -59,7 +60,8 @@ export const StationEdit = (props) => (
         source="type"
         choices={[
           { id: 'main_station', name: 'Main Station' },
-          { id: 'pickup_point', name: 'Pickup Point' },
+          { id: 'shared_point', name: 'Shareds Point' },
+          { id: 'private_point', name: 'Private Point' },
         ]}
       />
       <ReferenceInput source="ownerProvider" reference="providers" allowEmpty>
@@ -79,7 +81,8 @@ export const StationCreate = (props) => (
         source="type"
         choices={[
           { id: 'main_station', name: 'Main Station' },
-          { id: 'pickup_point', name: 'Pickup Point' },
+          { id: 'shared_point', name: 'Shareds Point' },
+          { id: 'private_point', name: 'Private Point' },
         ]}
         defaultValue="main_station"
       />
