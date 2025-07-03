@@ -516,7 +516,7 @@ exports.handleReturnResponse = async (req, res) => {
 exports.isBookingRefundable = async (req, res) => {
     const bookingId = req.params.bookingId;
     const booking = await Booking.findById(bookingId);
-    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'approved') {
+    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'confirmed_by_provider') {
         return res.status(400).json({ success: false, canRefund: false, reason: 'Đơn hàng không hợp lệ hoặc chưa thanh toán' });
     }
     const tickets = await Ticket.find({ booking: bookingId }).populate('trip');
