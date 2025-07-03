@@ -38,6 +38,13 @@ router.get(
     bookingController.getBookingPaymentStatus
 );
 
+//refundable
+router.get(
+    '/:bookingId/refundable',
+    loggedin,
+    bookingController.isBookingRefundable
+);
+
 
 router.get(
     '/my-history',
