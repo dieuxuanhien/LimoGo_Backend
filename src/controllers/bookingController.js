@@ -368,7 +368,7 @@ exports.createPaymentUrl = async (req, res) => {
 
     //update booking payment info (createDate)
     BookingObj.paymentInfo = {
-        transactionDate: createDate,
+        transactionDate: date,
         amount: amount, 
     };
     await BookingObj.save();
