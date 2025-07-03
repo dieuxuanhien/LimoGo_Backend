@@ -50,7 +50,7 @@ exports.validateCreateTrip = [
 
 // === VALIDATOR CHO VIỆC CẬP NHẬT TRIP ===
 exports.validateUpdateTrip = [
-    param('id').isMongoId().withMessage('ID chuyến đi không hợp lệ.'),
+    param('tripId').isMongoId().withMessage('ID chuyến đi không hợp lệ.'),
     // Các trường trong body đều là tùy chọn, nhưng nếu có thì phải hợp lệ
     body('route').optional().isMongoId().withMessage('Route ID không hợp lệ.'),
     body('vehicle').optional().isMongoId().withMessage('Vehicle ID không hợp lệ.'),
