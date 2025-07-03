@@ -546,7 +546,7 @@ exports.refundPayment = async (req, res) => {
     const bookingId = req.body.bookingId;
 
     const booking = await Booking.findById(bookingId);
-    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'approved') {
+    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'confirmed_by_provider') {
         return res.status(400).json({ success: false, message: 'Đơn hàng không hợp lệ hoặc chưa thanh toán' });
     }
     // 1. Kiểm tra điều kiện vé có hợp lệ để hoàn tiền không
