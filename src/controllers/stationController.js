@@ -1,5 +1,5 @@
 const Station = require('../models/station');
-const Itinerary = require('../models/itinerary');
+// const Itinerary = require('../models/itinerary');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
@@ -58,9 +58,9 @@ exports.getStationById = catchAsync(async (req, res, next) => {
 // Tạo station mới với logic 3 trạng thái
 exports.createStation = catchAsync(async (req, res, next) => {
 
-    if (user.role === 'admin'){
-        const user = await user.create(req.body);
-        return res.status(201).json({ success: true, data: user });
+    if (req.user.role === 'admin'){
+        const station = await Station.create(req.body , { runValidators: false });
+        return res.status(201).json({ success: true, data: station });
     }
 
     const { name, address, city, isPrivate } = req.body;
@@ -98,13 +98,13 @@ exports.createStation = catchAsync(async (req, res, next) => {
 exports.updateStation = catchAsync(async (req, res, next) => {
 
 
-    if (user.role === 'admin'){
-        const user = await user.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-        res.status(200).json({ success: true, data: user });
+    if (req.user.role === 'admin'){
+        const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: false });
+        return res.status(200).json({ success: true, data: station });
     }
     
     const stationId = req.params.id;
-    const role = req.user.userRole;
+    const role = req.user.role;
 
     const stationToUpdate = await Station.findById(stationId);
     if (!stationToUpdate) {
@@ -154,11 +154,11 @@ exports.deleteStation = catchAsync(async (req, res, next) => {
         return next(new AppError('Bạn không có quyền xóa tài nguyên chung của hệ thống.', 403));
     }
 
-    // Kiểm tra sự phụ thuộc trong các hành trình
-    const activeItinerary = await Itinerary.findOne({ 'stops.station': stationId });
-    if (activeItinerary) {
-        return next(new AppError('Không thể xóa vì đang có Hành trình sử dụng điểm đón/trả này.', 400));
-    }
+    // // Kiểm tra sự phụ thuộc trong các hành trình
+    // const activeItinerary = await Itinerary.findOne({ 'stops.station': stationId });
+    // if (activeItinerary) {
+    //     return next(new AppError('Không thể xóa vì đang có Hành trình sử dụng điểm đón/trả này.', 400));
+    // }
 
     await Station.findByIdAndDelete(stationId);
     res.status(204).json({ success: true, data: null });

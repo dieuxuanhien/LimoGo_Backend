@@ -90,15 +90,7 @@ function App() {
           icon={RouteIcon}
           options={{ label: 'Routes' }}
         />
-        <Resource 
-          name="payments" 
-          list={PaymentList} 
-          edit={PaymentEdit} 
-          create={PaymentCreate} 
-          show={PaymentShow}
-          icon={PaymentIcon}
-          options={{ label: 'Payments' }}
-        />
+     
         <Resource 
           name="trips" 
           list={TripList} 

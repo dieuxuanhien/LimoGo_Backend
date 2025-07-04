@@ -29,8 +29,7 @@ const DriverFilter = (props) => (
       source="status"
       choices={[
         { id: 'available', name: 'Available' },
-        { id: 'on_trip', name: 'On Trip' },
-        { id: 'off_duty', name: 'Off Duty' },
+        { id: 'assigned', name: 'Assigned' },
       ]}
     />
     <ReferenceInput source="provider" reference="providers">
@@ -68,8 +67,7 @@ export const DriverEdit = (props) => (
         source="status"
         choices={[
           { id: 'available', name: 'Available' },
-          { id: 'on_trip', name: 'On Trip' },
-          { id: 'off_duty', name: 'Off Duty' },
+          { id: 'assigned', name: 'Assigned' },
         ]}
       />
       <ReferenceInput source="provider" reference="providers">
@@ -94,8 +92,7 @@ export const DriverCreate = (props) => (
         source="status"
         choices={[
           { id: 'available', name: 'Available' },
-          { id: 'on_trip', name: 'On Trip' },
-          { id: 'off_duty', name: 'Off Duty' },
+          { id: 'assigned', name: 'Assigned' },
         ]}
         defaultValue="available"
       />

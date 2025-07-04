@@ -135,9 +135,10 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 
 exports.getUserById = catchAsync(async (req, res, next) => {
     // Validator đã gắn user vào req.foundUser
+    const user = await User.findById(req.params.id).select('+password');
     res.status(200).json({
         success: true,
-        data: req.foundUser,
+        data: user,
     });
 });
 
@@ -152,18 +153,18 @@ exports.createUser = catchAsync(async (req, res, next) => {
     const newUser = await User.create(filteredBody);
     
     // Loại bỏ password khỏi response
-    newUser.password = undefined;
-    
-    res.status(201).json({
-        success: true,
-        message: 'Tạo người dùng thành công!',
-        data: newUser,
-    });
+   newUser.password = undefined;
+
+   res.status(201).json({
+       success: true,
+       message: 'Tạo người dùng thành công!',
+       data: newUser,
+   });
 });
 
 exports.updateUser = catchAsync(async (req, res, next) => {
     // Validator đã gắn user vào req.foundUser
-    const user = req.foundUser;
+    const user = await User.findById(req.params.id).select('+password');
     
     const filteredBody = filterObject(req.body, 'name', 'email', 'phoneNumber', 'userRole', 'gender', 'dateOfBirth', 'verified');
     
@@ -186,7 +187,7 @@ exports.updateUser = catchAsync(async (req, res, next) => {
 
 exports.deleteUser = catchAsync(async (req, res, next) => {
     // Validator đã gắn user vào req.foundUser
-    const user = req.params.id;
+    const user = await User.findById(req.params.id).select('+password');
 
     await User.findByIdAndDelete(user);
 
@@ -195,3 +196,4 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
         message: 'Xóa người dùng thành công.',
     });
 });
+

@@ -181,6 +181,7 @@ const getTripById = catchAsync(async (req, res, next) => {
         .populate('driver')
         .lean();
 
+
     if (!trip) {
         return next(new AppError('Không tìm thấy chuyến đi hoặc bạn không có quyền truy cập.', 404));
     }
@@ -272,6 +273,7 @@ const deleteTrip = catchAsync(async (req, res, next) => {
     }
 
     const trip = await Trip.findOneAndDelete(query);
+
 
     if (!trip) {
         return next(new AppError('Không tìm thấy chuyến đi hoặc bạn không có quyền xóa.', 404));
@@ -563,6 +565,7 @@ const searchTrips = catchAsync(async (req, res, next) => {
                 // estimatedDepartureTimeFromOriginCity: { $arrayElemAt: ['$validOriginScheduleEntries.estimatedDepartureTime', 0] },
                 // estimatedArrivalTimeToDestinationCity: { $arrayElemAt: ['$validDestinationScheduleEntries.estimatedArrivalTime', { $subtract: [{ $size: '$validDestinationScheduleEntries' }, 1] }] }
             }
+
         }
     ];
 

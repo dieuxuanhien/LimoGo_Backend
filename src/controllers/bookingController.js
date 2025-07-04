@@ -469,6 +469,13 @@ exports.createPaymentUrl = async (req, res) => {
     vnp_Params['vnp_SecureHash'] = signed;
     vnpUrl += '?' + querystring.stringify(vnp_Params, { encode: false });
     //
+
+    //update booking payment info (createDate)
+    BookingObj.paymentInfo = {
+        transactionDate: date,
+        amount: amount, 
+    };
+    await BookingObj.save();
     res.status(200).json({success: true, data: vnpUrl, message: 'Tạo URL thanh toán thành công.'});
     }
     catch (err) {
@@ -485,7 +492,8 @@ exports.handleIpnResponse = async (req, res) => {
     
     let orderId = vnp_Params['vnp_TxnRef'];
     let rspCode = vnp_Params['vnp_ResponseCode'];
-
+    let transactionId = vnp_Params['vnp_TransactionNo'];
+    let tsCode = vnp_Params['vnp_TransactionStatus'];
     delete vnp_Params['vnp_SecureHash'];
     delete vnp_Params['vnp_SecureHashType'];
 
@@ -522,12 +530,13 @@ if(secureHash === signed){ //kiểm tra checksum
                 const session = await mongoose.startSession();
                 session.startTransaction();
                 try {
-                    if(rspCode=="00"){
+                    if(tsCode=="00"){
                         // Thành công
                         booking.paymentStatus = 'completed';
                         booking.approvalStatus = 'confirmed_by_provider'; // Đã được nhà xe duyệt
                     // Thanh toán thành công = đơn hàng được xác nhận
                         booking.bookingExpiresAt = undefined; // Bỏ hạn
+                        booking.paymentInfo.transactionId = transactionId; // Lưu transactionId
                         await booking.save({ session });
 
                         // Cập nhật trạng thái các vé liên quan
@@ -544,6 +553,7 @@ if(secureHash === signed){ //kiểm tra checksum
                         // Thất bại
                         booking.paymentStatus = 'failed';
                         booking.approvalStatus = 'cancelled'; // Đơn hàng bị hủy do thanh toán thất bại
+                        booking.paymentInfo = null;
                         await booking.save({ session });
                         await session.commitTransaction();
                         res.status(200).json({RspCode: '00', Message: 'Success'})
@@ -607,6 +617,155 @@ exports.handleReturnResponse = async (req, res) => {
 
 }
 
+exports.isBookingRefundable = async (req, res) => {
+    const bookingId = req.params.bookingId;
+    const booking = await Booking.findById(bookingId);
+    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'confirmed_by_provider') {
+        return res.status(400).json({ success: false, canRefund: false, reason: 'Đơn hàng không hợp lệ hoặc chưa thanh toán' });
+    }
+    const tickets = await Ticket.find({ booking: bookingId }).populate('trip');
+    if (!tickets || tickets.length === 0) {
+        return res.status(400).json({ success: false, canRefund: false, reason: 'Không tìm thấy vé liên quan đến đơn hàng.' });
+    }
+    for (const ticket of tickets) {
+        if (!ticket.trip || ticket.trip.status !== 'scheduled') {
+            return res.status(400).json({ success: false, canRefund: false, reason: 'Không thể hoàn tiền cho vé này' });
+        }
+        const departureTime = ticket.trip.departureTime;
+        if (!departureTime) {
+            return res.status(400).json({ success: false, canRefund: false, reason: 'Chuyến xe chưa có thời gian khởi hành.' });
+        }
+        const now = new Date();
+        const diffMs = new Date(departureTime) - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours < 12) {
+            return res.status(400).json({ success: true, canRefund: false, reason: 'Chỉ được hoàn tiền trước giờ khởi hành ít nhất 12 tiếng.' });
+        }
+    }
+    return res.status(200).json({ success: true, canRefund: true });
+};
+
+
+exports.refundPayment = async (req, res) => {
+    const bookingId = req.body.bookingId;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking || booking.paymentStatus !== 'completed' || booking.approvalStatus !== 'confirmed_by_provider') {
+        return res.status(400).json({ success: false, message: 'Đơn hàng không hợp lệ hoặc chưa thanh toán' });
+    }
+    // 1. Kiểm tra điều kiện vé có hợp lệ để hoàn tiền không
+    const tickets = await Ticket.find({ booking: bookingId }).populate('trip');
+    if (!tickets || tickets.length === 0) {
+        return res.status(400).json({ success: false, message: 'Không tìm thấy vé liên quan đến đơn hàng.' });
+    }
+    // Kiểm tra từng vé
+    for (const ticket of tickets) {
+        if (!ticket.trip || ticket.trip.status !== 'scheduled') {
+            return res.status(400).json({ success: false, message: 'không thể hoàn tiền cho vé này' });
+        }
+        const departureTime = ticket.trip.departureTime;
+        if (!departureTime) {
+            return res.status(400).json({ success: false, message: 'Chuyến xe chưa có thời gian khởi hành.' });
+        }
+        const now = new Date();
+        const diffMs = new Date(departureTime) - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours < 12) {
+            return res.status(400).json({ success: false, message: 'Chỉ được hoàn tiền trước giờ khởi hành ít nhất 12 tiếng.' });
+        }
+    }
+
+    process.env.TZ = 'Asia/Ho_Chi_Minh';
+    let date = new Date();
+
+    let config = require('config');
+    let crypto = require("crypto");
+   
+    let vnp_TmnCode = config.get('vnp_TmnCode');
+    let secretKey = config.get('vnp_HashSecret');
+    let vnp_Api = config.get('vnp_Api');
+
+    let vnp_TxnRef = booking._id.toString(); // Mã đơn hàng, có thể là BookingObj._id hoặc một mã định danh duy nhất khác
+    let vnp_TransactionDate = moment(booking.paymentInfo.transactionDate).format('YYYYMMDDHHmmss'); // Ngày giao dịch thanh toán
+    let vnp_Amount = booking.paymentInfo.amount * 100; // Số tiền hoàn trả, nhân với 100 để chuyển sang đơn vị đồng (VND)
+    let vnp_TransactionType = '02'; // Loại giao dịch là hoàn tiền
+    let vnp_CreateBy = booking.user.toString(); // Tên người tạo giao dịch, có thể là tên người dùng hoặc nhà xe
+    let currCode = 'VND';
+    
+    let vnp_RequestId = moment(date).format('HHmmss');
+    let vnp_Version = '2.1.0';
+    let vnp_Command = 'refund';
+    let vnp_OrderInfo = 'Hoan tien GD ma:' + vnp_TxnRef;
+            
+    let vnp_IpAddr = req.headers['x-forwarded-for'] ||
+        req.connection.remoteAddress ||
+        req.socket.remoteAddress ||
+        req.connection.socket.remoteAddress;
+
+    
+    let vnp_CreateDate = moment(date).format('YYYYMMDDHHmmss');
+    
+    let vnp_TransactionNo = booking.paymentInfo.transactionId || ''; // Mã giao dịch thanh toán, nếu có
+    
+    let data = vnp_RequestId + "|" + vnp_Version + "|" + vnp_Command + "|" + vnp_TmnCode + "|" + vnp_TransactionType + "|" + vnp_TxnRef + "|" + vnp_Amount + "|" + vnp_TransactionNo + "|" + vnp_TransactionDate + "|" + vnp_CreateBy + "|" + vnp_CreateDate + "|" + vnp_IpAddr + "|" + vnp_OrderInfo;
+    let hmac = crypto.createHmac("sha512", secretKey);
+    let vnp_SecureHash = hmac.update(new Buffer(data, 'utf-8')).digest("hex");
+    
+     let dataObj = {
+        'vnp_RequestId': vnp_RequestId,
+        'vnp_Version': vnp_Version,
+        'vnp_Command': vnp_Command,
+        'vnp_TmnCode': vnp_TmnCode,
+        'vnp_TransactionType': vnp_TransactionType,
+        'vnp_TxnRef': vnp_TxnRef,
+        'vnp_Amount': vnp_Amount,
+        'vnp_TransactionNo': vnp_TransactionNo,
+        'vnp_CreateBy': vnp_CreateBy,
+        'vnp_OrderInfo': vnp_OrderInfo,
+        'vnp_TransactionDate': vnp_TransactionDate,
+        'vnp_CreateDate': vnp_CreateDate,
+        'vnp_IpAddr': vnp_IpAddr,
+        'vnp_SecureHash': vnp_SecureHash
+    };
+    
+    request({
+        url: vnp_Api,
+        method: "POST",
+        json: true,   
+        body: dataObj
+    }, async function (error, response, body) {
+        console.log(response);
+        if (error) {
+            console.error('Error:', error);
+            return res.status(500).json({ success: false, message: 'Lỗi khi gửi yêu cầu hoàn tiền', error: error.message });
+        }
+
+        if (body && body.vnp_ResponseCode === '00') {
+            // Cập nhật trạng thái booking và vé
+            const booking = await Booking.findById(bookingId);
+            if (!booking) {
+                return res.status(404).json({ success: false, message: 'Đơn hàng không tồn tại' });
+            }
+
+            booking.paymentStatus = 'failed'; // Cập nhật trạng thái thanh toán
+            booking.approvalStatus = 'cancelled'; // Cập nhật trạng thái duyệt
+            await booking.save();
+
+            await Ticket.updateMany(
+                { booking:  booking._id },
+                { 
+                    $set: { status: 'available' },
+                    $unset: { user: "", booking: "" }
+                }
+            );
+
+            return res.status(200).json({ success: true, message: 'Hoàn tiền thành công', data: body });
+        } else {
+            return res.status(400).json({ success: false, message: 'Hoàn tiền thất bại', data: body });
+        }
+    });
+
+};
 
 exports.getBookingPaymentStatus = async (req, res) => {
     const { bookingId } = req.params;
@@ -624,6 +783,8 @@ exports.getBookingPaymentStatus = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 }
+
+
 
 
 /**

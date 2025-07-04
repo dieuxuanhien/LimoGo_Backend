@@ -27,6 +27,12 @@ const bookingSchema = new Schema({
         enum: ['pending', 'completed', 'failed', 'expired'], 
         default: 'pending' 
     },
+    // Thông tin thanh toán (nếu có)
+    paymentInfo: {
+        transactionId: { type: String },
+        transactionDate: { type: Date },
+        amount: { type: Number }
+    },
     
     // Hạn chót để nhà xe duyệt hoặc khách hàng thanh toán
     bookingExpiresAt: { type: Date }
