@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const hash = require('./utils/hashing'); // Đảm bảo đường dẫn đúng
-const { v4: uuidv4 } = require('uuid'); // Để tạo unique IDs hoặc accessId
+const { v4: uuidv4 } = require('uuid'); // Để tạo unique IDs (ví dụ cho accessId của Ticket)
 
 // Import các model
 const User = require('./models/user');
@@ -34,7 +34,7 @@ const getRandomDate = (start, end) => {
     return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 };
 
-// Hàm sắp xếp priceMatrix (copy từ controller)
+// Hàm sắp xếp priceMatrix (copy từ controller, đảm bảo nhất quán)
 const sortPriceMatrix = (priceMatrix) => {
     if (!priceMatrix) return [];
     return priceMatrix.sort((a, b) => {
@@ -48,6 +48,7 @@ const sortPriceMatrix = (priceMatrix) => {
 const seedData = async () => {
     try {
         console.log('--- Deleting old data...');
+        // Xóa dữ liệu cũ theo đúng thứ tự phụ thuộc
         await Ticket.deleteMany({});
         await Trip.deleteMany({});
         await Itinerary.deleteMany({});
@@ -64,15 +65,15 @@ const seedData = async () => {
         // --- 1. Tạo Users ---
         let usersToCreate = [
             { email: 'admin@limogo.com', password: 'password123', phoneNumber: '+84111111111', userRole: 'admin', name: 'Admin LimoGo', verified: true },
-            { email: 'provider.futa@limogo.com', password: 'password123', phoneNumber: '+84222222222', userRole: 'provider', name: 'Provider Futa', verified: true },
-            { email: 'provider.thanhbuoi@limogo.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'provider', name: 'Provider Thanh Buoi', verified: true },
+            { email: 'provider.futa@limogo.com', password: 'password123', phoneNumber: '+84222222222', userRole: 'provider', name: 'Nhà xe Phương Trang', verified: true },
+            { email: 'provider.thanhbuoi@limogo.com', password: 'password123', phoneNumber: '+84333333333', userRole: 'provider', name: 'Nhà xe Thành Bưởi', verified: true },
             // Thêm nhiều customer hơn
-            ...Array.from({ length: 50 }, (_, i) => ({
+            ...Array.from({ length: 100 }, (_, i) => ({ // 100 customers
                 email: `customer${i + 1}@gmail.com`,
                 password: 'password123',
                 phoneNumber: `+84${600000000 + i}`,
                 userRole: 'customer',
-                name: `Customer ${String.fromCharCode(65 + i)}`,
+                name: `Khách hàng ${String.fromCharCode(65 + (i % 26))}${Math.floor(i / 26) + 1}`,
                 verified: true
             }))
         ];
@@ -92,19 +93,19 @@ const seedData = async () => {
         const providers = await Provider.insertMany([
             { name: 'Nhà xe Phương Trang', email: 'contact@futa.vn', phone: '19006067', address: '80 Trần Hưng Đạo, Quận 1, TP. Hồ Chí Minh', status: 'active', mainUser: futaProviderUser._id },
             { name: 'Nhà xe Thành Bưởi', email: 'contact@thanhbuoi.com', phone: '19006079', address: '266 Lê Hồng Phong, Quận 5, TP. Hồ Chí Minh', status: 'active', mainUser: thanhBuoiProviderUser._id },
-            // Thêm nhiều providers khác
+            // Thêm 5 providers khác
             ...Array.from({ length: 5 }, (_, i) => ({
                 name: `Nhà xe Test ${i + 1}`,
                 email: `testprovider${i + 1}@limogo.com`,
                 phone: `+84${700000000 + i}`,
-                address: `${i + 1} Đường Quang Trung, Quận ${i + 1}`,
+                address: `${i + 1} Đường Nguyễn Văn Cừ, Quận ${Math.floor(Math.random()*10)+1}`,
                 status: 'active',
-                mainUser: customerUsers[i + 2].id // Sử dụng customer làm mainUser tạm thời
+                mainUser: customerUsers[i].id // Sử dụng customer làm mainUser tạm thời (đảm bảo không trùng với futa/thanhbuoi)
             }))
         ]);
         const futaProvider = providers.find(p => p.name === 'Nhà xe Phương Trang');
         const thanhBuoiProvider = providers.find(p => p.name === 'Nhà xe Thành Bưởi');
-        const otherProviders = providers.filter(p => p._id.toString() !== futaProvider._id.toString() && p._id.toString() !== thanhBuoiProvider._id.toString());
+        const allProviders = providers; // Tất cả các provider
         console.log(`${providers.length} Providers đã được tạo.`);
 
         // --- 3. Tạo STATIONS ---
@@ -117,13 +118,13 @@ const seedData = async () => {
             { name: 'Văn phòng FUTA - Đề Thám', city: 'TP.HCM', address: '272 Đề Thám, Quận 1', type: 'private_point', ownerProvider: futaProvider._id, coordinates: { lat: 10.7678, lng: 106.6908 } },
             { name: 'Văn phòng Thành Bưởi - LHP', city: 'TP.HCM', address: '266 Lê Hồng Phong, Quận 5', type: 'private_point', ownerProvider: thanhBuoiProvider._id, coordinates: { lat: 10.7667, lng: 106.6718 } },
             { name: 'Đà Lạt Trạm 1', city: 'Đà Lạt', address: '10 Nguyễn Chí Thanh', type: 'private_point', ownerProvider: futaProvider._id, coordinates: { lat: 11.9366, lng: 108.4346 } },
-            // Thêm các điểm đón/trả riêng cho các nhà xe khác
-            ...Array.from({ length: 10 }, (_, i) => ({
+            // Thêm các điểm đón/trả riêng cho các nhà xe khác (15 điểm)
+            ...Array.from({ length: 15 }, (_, i) => ({
                 name: `VP Test Provider ${i + 1}`,
-                city: 'TP.HCM',
-                address: `${i + 1} Test St, Dist 1`,
+                city: ['Hà Nội', 'Đà Nẵng', 'TP.HCM', 'Huế', 'Vũng Tàu'][Math.floor(Math.random()*5)],
+                address: `${i + 1} Đường Test, Q.Test`,
                 type: 'private_point',
-                ownerProvider: otherProviders[Math.floor(Math.random() * otherProviders.length)]._id,
+                ownerProvider: allProviders[Math.floor(Math.random() * allProviders.length)]._id,
                 coordinates: { lat: 10.7 + i * 0.01, lng: 106.6 + i * 0.01 }
             }))
         ]);
@@ -134,15 +135,17 @@ const seedData = async () => {
         const ngaTuHangXanh = stations.find(s => s.name === 'Ngã tư Hàng Xanh');
         const vpFuta = stations.find(s => s.name === 'Văn phòng FUTA - Đề Thám');
         const vpThanhBuoi = stations.find(s => s.name === 'Văn phòng Thành Bưởi - LHP');
+        const mainStations = stations.filter(s => s.type === 'main_station');
+        const allStations = stations;
         console.log(`${stations.length} Stations đã được tạo.`);
 
         // --- 4. Tạo Drivers ---
         const drivers = [];
-        for (let i = 0; i < 50; i++) { // 50 drivers
-            const provider = providers[Math.floor(Math.random() * providers.length)];
-            const station = stations[Math.floor(Math.random() * stations.length)];
+        for (let i = 0; i < 70; i++) { // 70 drivers
+            const provider = allProviders[Math.floor(Math.random() * allProviders.length)];
+            const station = allStations[Math.floor(Math.random() * allStations.length)];
             drivers.push({
-                name: `Tài xế ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${i}`,
+                name: `Tài xế ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(97 + Math.floor(Math.random() * 26))} ${i+1}`,
                 age: 25 + Math.floor(Math.random() * 30),
                 photo: `/uploads/images/driver_photo_${i}.jpg`, // Placeholder photo URL
                 provider: provider._id,
@@ -156,17 +159,17 @@ const seedData = async () => {
         // --- 5. Tạo Vehicles ---
         const vehicles = [];
         const vehicleTypes = ['Giường nằm 40 chỗ', 'Limousine 9 chỗ', 'Ghế ngồi 29 chỗ', 'Giường nằm 34 chỗ'];
-        for (let i = 0; i < 30; i++) { // 30 vehicles
-            const provider = providers[Math.floor(Math.random() * providers.length)];
-            const station = stations[Math.floor(Math.random() * stations.length)];
+        for (let i = 0; i < 50; i++) { // 50 vehicles
+            const provider = allProviders[Math.floor(Math.random() * allProviders.length)];
+            const station = allStations[Math.floor(Math.random() * allStations.length)];
             vehicles.push({
                 provider: provider._id,
                 type: vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)],
                 currentStation: station._id,
-                licensePlate: `${Math.floor(10 + Math.random() * 90)}F-${Math.floor(10000 + Math.random() * 90000)}`,
+                licensePlate: `${Math.floor(10 + Math.random() * 90)}A-${Math.floor(10000 + Math.random() * 90000)}`,
                 status: Math.random() < 0.9 ? 'available' : 'maintenance',
                 capacity: (Math.random() < 0.5) ? 40 : (Math.random() < 0.5 ? 9 : 29),
-                manufacturer: ['Mercedes', 'Hyundai', 'Thaco'][Math.floor(Math.random() * 3)],
+                manufacturer: ['Mercedes', 'Hyundai', 'Thaco', 'Ford'][Math.floor(Math.random() * 4)],
                 model: `Model ${Math.floor(1000 + Math.random() * 9000)}`,
                 image: `/uploads/images/vehicle_${i}.jpg` // Placeholder image URL
             });
@@ -176,16 +179,15 @@ const seedData = async () => {
 
         // --- 6. Tạo Routes ---
         const routes = [];
-        const majorStations = [bxMienDong, bxDaLat, bxCanTho, bxNhaTrang];
-        const allStationIds = stations.map(s => s._id);
+        const mainStationIds = mainStations.map(s => s._id);
 
         // Tuyến hệ thống (Admin tạo)
-        for (let i = 0; i < majorStations.length; i++) {
-            for (let j = 0; j < majorStations.length; j++) {
+        for (let i = 0; i < mainStationIds.length; i++) {
+            for (let j = 0; j < mainStationIds.length; j++) {
                 if (i !== j) {
                     routes.push({
-                        originStation: majorStations[i]._id,
-                        destinationStation: majorStations[j]._id,
+                        originStation: mainStationIds[i],
+                        destinationStation: mainStationIds[j],
                         distanceKm: Math.floor(100 + Math.random() * 500),
                         estimatedDurationMin: Math.floor(120 + Math.random() * 480),
                         ownerProvider: null // Tuyến hệ thống
@@ -193,13 +195,13 @@ const seedData = async () => {
                 }
             }
         }
-        // Tuyến riêng của Provider (randomly picked origin/destination)
-        for (let i = 0; i < 20; i++) { // 20 private routes
-            const provider = providers[Math.floor(Math.random() * providers.length)];
-            const originStation = stations[Math.floor(Math.random() * stations.length)];
+        // Tuyến riêng của Provider (randomly picked origin/destination from all stations)
+        for (let i = 0; i < 30; i++) { // 30 private routes
+            const provider = allProviders[Math.floor(Math.random() * allProviders.length)];
+            const originStation = allStations[Math.floor(Math.random() * allStations.length)];
             let destinationStation;
             do { // Đảm bảo điểm đến khác điểm đi
-                destinationStation = stations[Math.floor(Math.random() * stations.length)];
+                destinationStation = allStations[Math.floor(Math.random() * allStations.length)];
             } while (originStation._id.toString() === destinationStation._id.toString());
 
             routes.push({
@@ -215,62 +217,55 @@ const seedData = async () => {
 
         // --- 7. Tạo Itineraries ---
         const itineraries = [];
-        for (let i = 0; i < 40; i++) { // 40 itineraries
-            const provider = providers[Math.floor(Math.random() * providers.length)];
-            const baseRoute = createdRoutes[Math.floor(Math.random() * createdRoutes.length)]; // Lấy route bất kỳ
+        for (let i = 0; i < 60; i++) { // 60 itineraries
+            const provider = allProviders[Math.floor(Math.random() * allProviders.length)];
+            const baseRouteCandidate = createdRoutes[Math.floor(Math.random() * createdRoutes.length)];
             
+            // Lọc baseRoute để đảm bảo nó thuộc provider hoặc là tuyến chung
+            const baseRoute = createdRoutes.filter(r => 
+                r.ownerProvider === null || r.ownerProvider.toString() === provider._id.toString()
+            )[Math.floor(Math.random() * createdRoutes.filter(r => r.ownerProvider === null || r.ownerProvider.toString() === provider._id.toString()).length)];
+            
+            if (!baseRoute) continue; // Bỏ qua nếu không tìm được baseRoute tương thích
+
             // Lấy các điểm dừng của itinerary
-            let possibleStops = [];
-            // Bao gồm originStation và destinationStation của baseRoute
-            possibleStops.push(baseRoute.originStation.toString());
-            possibleStops.push(baseRoute.destinationStation.toString());
+            let possibleStopsIds = new Set();
+            possibleStopsIds.add(baseRoute.originStation.toString());
+            possibleStopsIds.add(baseRoute.destinationStation.toString());
             
-            // Thêm một vài điểm đón/trả ngẫu nhiên giữa chặng (trong cùng thành phố với origin/destination nếu có thể)
-            // hoặc các shared_point
-            const intermediateStations = stations.filter(s => 
-                s.type === 'shared_point' || 
-                (s.type === 'private_point' && s.ownerProvider && s.ownerProvider.toString() === provider._id.toString()) ||
-                (s.city === stations.find(st => st._id.toString() === baseRoute.originStation.toString())?.city) ||
-                (s.city === stations.find(st => st._id.toString() === baseRoute.destinationStation.toString())?.city)
+            // Thêm một vài điểm đón/trả ngẫu nhiên giữa chặng
+            // (ưu tiên shared_point hoặc private_point của cùng provider)
+            const intermediateStationCandidates = allStations.filter(s => 
+                s._id.toString() !== baseRoute.originStation.toString() &&
+                s._id.toString() !== baseRoute.destinationStation.toString() &&
+                (s.type === 'shared_point' || 
+                 (s.type === 'private_point' && s.ownerProvider && s.ownerProvider.toString() === provider._id.toString()))
             ).map(s => s._id.toString());
 
             const numberOfIntermediateStops = Math.floor(Math.random() * 3); // 0-2 điểm dừng giữa chặng
             for (let k = 0; k < numberOfIntermediateStops; k++) {
-                if (intermediateStations.length > 0) {
-                    const randomStop = intermediateStations[Math.floor(Math.random() * intermediateStations.length)];
-                    if (!possibleStops.includes(randomStop)) {
-                        possibleStops.push(randomStop);
-                    }
+                if (intermediateStationCandidates.length > 0) {
+                    const randomStop = intermediateStationCandidates[Math.floor(Math.random() * intermediateStationCandidates.length)];
+                    possibleStopsIds.add(randomStop);
                 }
             }
 
             // Sắp xếp các điểm dừng theo thứ tự giả định trên tuyến đường
             // (Thực tế phức tạp hơn, cần logic địa lý hoặc thứ tự trên tuyến)
             // Tạm thời sắp xếp theo ID để có thứ tự nhất quán.
-            possibleStops.sort();
+            const sortedPossibleStopsIds = Array.from(possibleStopsIds).sort();
 
-            const stops = possibleStops.map((stationId, idx) => ({
+            const stops = sortedPossibleStopsIds.map((stationId, idx) => ({
                 station: stationId,
                 order: idx + 1
             }));
-
-            // Nếu baseRoute có ownerProvider là null, và itinerary này cũng có provider khác null,
-            // đảm bảo itinerary chỉ dùng route chung của hệ thống.
-            // Ngược lại, nếu route có ownerProvider, itinerary này phải thuộc cùng provider đó.
-            let validBaseRoute = baseRoute;
-            if (baseRoute.ownerProvider && baseRoute.ownerProvider.toString() !== provider._id.toString()) {
-                // Nếu baseRoute là riêng của provider khác, tìm baseRoute chung hoặc của provider này
-                const compatibleRoutes = createdRoutes.filter(r => 
-                    r.ownerProvider === null || r.ownerProvider.toString() === provider._id.toString()
-                );
-                validBaseRoute = compatibleRoutes[Math.floor(Math.random() * compatibleRoutes.length)];
-            }
-
+            
+            if (stops.length < 2) continue; // Itinerary phải có ít nhất 2 điểm dừng
 
             itineraries.push({
-                name: `Hành trình ${provider.name} ${stops[0]?.order? stations.find(s => s._id.toString() === stops[0].station)?.name : 'N/A'} - ${stops[stops.length - 1]?.order? stations.find(s => s._id.toString() === stops[stops.length - 1].station)?.name : 'N/A'} ${i+1}`,
+                name: `Hành trình ${provider.name} ${stations.find(s=>s._id.toString()===stops[0].station)?.name || 'N/A'} - ${stations.find(s=>s._id.toString()===stops[stops.length - 1].station)?.name || 'N/A'} ${i+1}`,
                 provider: provider._id,
-                baseRoute: validBaseRoute._id,
+                baseRoute: baseRoute._id,
                 stops: stops
             });
         }
@@ -281,29 +276,29 @@ const seedData = async () => {
         // --- 8. Tạo Trips ---
         const trips = [];
         const currentYear = new Date().getFullYear();
-        const futureDate = new Date(currentYear + 1, 0, 1); // 1/1 năm sau
-        const pastDate = new Date(currentYear - 1, 0, 1); // 1/1 năm trước
+        const startDateForTrips = new Date(currentYear, 0, 1); // 1/1 năm hiện tại
+        const endDateForTrips = new Date(currentYear + 1, 11, 31); // 31/12 năm sau
 
-        for (let i = 0; i < 100; i++) { // 100 trips (để test pagination)
+        for (let i = 0; i < 200; i++) { // 200 trips (để test pagination và search)
             const itinerary = createdItineraries[Math.floor(Math.random() * createdItineraries.length)];
-            const provider = providers.find(p => p._id.toString() === itinerary.provider.toString());
+            const provider = allProviders.find(p => p._id.toString() === itinerary.provider.toString());
             const vehicle = createdVehicles.filter(v => v.provider.toString() === provider._id.toString() && v.status === 'available')[0];
             const driver = createdDrivers.filter(d => d.provider.toString() === provider._id.toString() && d.status === 'available')[0];
 
             if (!vehicle || !driver) {
                 // console.warn(`Skipping trip ${i} due to no available vehicle or driver for provider ${provider.name}`);
-                continue;
+                continue; // Bỏ qua nếu không tìm được xe hoặc tài xế phù hợp
             }
             
-            // Tạo schedule dựa trên itinerary.stops
             const itineraryDetail = await Itinerary.findById(itinerary._id).populate('stops.station');
             const sortedItineraryStops = itineraryDetail.stops.sort((a,b) => a.order - b.order);
 
-            const baseDepartureTime = getRandomDate(new Date(), futureDate); // Ngày khởi hành trong tương lai
+            if (sortedItineraryStops.length < 2) continue; // Bỏ qua itinerary không hợp lệ
+
+            const baseDepartureTime = getRandomDate(startDateForTrips, endDateForTrips);
             let currentTravelTime = baseDepartureTime;
             const schedule = [];
             
-            // Generate schedule
             for (let j = 0; j < sortedItineraryStops.length; j++) {
                 const stop = sortedItineraryStops[j];
                 const estimatedArrivalTime = new Date(currentTravelTime.getTime() + (j > 0 ? Math.floor(Math.random() * 30 + 10) * 60 * 1000 : 0)); // Thêm 10-40 phút cho mỗi chặng
@@ -317,7 +312,6 @@ const seedData = async () => {
                 currentTravelTime = estimatedDepartureTime;
             }
 
-            // Tạo priceMatrix
             const priceMatrix = [];
             for (let k = 0; k < sortedItineraryStops.length; k++) {
                 for (let l = k + 1; l < sortedItineraryStops.length; l++) {
@@ -327,8 +321,6 @@ const seedData = async () => {
                     priceMatrix.push({ originStop, destinationStop, price: basePrice });
                 }
             }
-            
-            // Sắp xếp priceMatrix
             const sortedPriceMatrix = sortPriceMatrix(priceMatrix);
 
             trips.push({
@@ -338,7 +330,7 @@ const seedData = async () => {
                 provider: provider._id,
                 departureTime: schedule[0].estimatedDepartureTime,
                 arrivalTime: schedule[schedule.length - 1].estimatedArrivalTime,
-                status: (Math.random() < 0.1) ? 'completed' : (Math.random() < 0.2 ? 'cancelled' : 'scheduled'), // Random status
+                status: (Math.random() < 0.1) ? 'completed' : (Math.random() < 0.2 ? 'in-progress' : 'scheduled'), // Random status (in-progress, completed, scheduled)
                 priceMatrix: sortedPriceMatrix,
                 schedule: schedule
             });
@@ -347,21 +339,21 @@ const seedData = async () => {
         console.log(`${createdTrips.length} Trips đã được tạo.`);
 
 
-    } catch (error) {
-        console.error("!!! ERROR DURING SEEDING:", error);
-    }
+    } catch (error) {
+        console.error("!!! ERROR DURING SEEDING:", error);
+    }
 };
 
 const run = async () => {
-    await connectDB();
-    if (mongoose.connection.readyState === 1) {
-        await seedData();
-    }
-    await mongoose.disconnect();
-    console.log('Disconnected.');
+    await connectDB();
+    if (mongoose.connection.readyState === 1) {
+        await seedData();
+    }
+    await mongoose.disconnect();
+    console.log('Disconnected.');
 };
 
 run().catch(err => {
-    console.error("!!! SCRIPT FAILED AT TOP LEVEL !!!", err);
-    mongoose.disconnect();
+    console.error("!!! SCRIPT FAILED AT TOP LEVEL !!!", err);
+    mongoose.disconnect();
 });
