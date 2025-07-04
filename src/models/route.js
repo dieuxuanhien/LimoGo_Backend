@@ -8,7 +8,7 @@ const routeSchema = new Schema({
 
     // --- THÊM MỚI: Trường để xác định chủ sở hữu của tuyến đường ---
     // Sẽ là null/undefined nếu đây là tuyến đường chung của hệ thống (do Admin tạo)
-    ownerProvider: {
+    ownerProvider: {    
         type: Schema.Types.ObjectId,
         ref: 'Provider',
     }

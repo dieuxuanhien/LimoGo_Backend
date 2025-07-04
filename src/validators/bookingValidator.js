@@ -1,4 +1,6 @@
 const { body, param, query } = require('express-validator');
+const mongoose = require('mongoose'); // Import mongoose để kiểm tra ObjectId
+
 
 // Quy tắc cho việc khóa ghế
 exports.validateLockSeat = [
@@ -17,16 +19,33 @@ exports.validateLockMultipleSeats = [
         .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.')
 ];
 
-// Quy tắc cho việc xác nhận đặt vé
 exports.validateConfirmBooking = [
     body('ticketIds')
         .notEmpty().withMessage('ticketIds là bắt buộc.')
         .isArray({ min: 1 }).withMessage('ticketIds phải là một mảng chứa ít nhất 1 vé.'),
-    
     body('ticketIds.*')
         .isMongoId().withMessage('Mỗi ticketId trong mảng phải là một ID hợp lệ.'),
+    
+    // THÊM MỚI: Validation cho originStopId và destinationStopId
+    body('originStopId')
+        .notEmpty().withMessage('Điểm đi của chặng là bắt buộc.')
+        .isMongoId().withMessage('ID điểm đi không hợp lệ.')
+        .custom((value) => {
+            if (!mongoose.Types.ObjectId.isValid(value)) {
+                throw new Error('ID điểm đi không hợp lệ.');
+            }
+            return true;
+        }),
+    body('destinationStopId')
+        .notEmpty().withMessage('Điểm đến của chặng là bắt buộc.')
+        .isMongoId().withMessage('ID điểm đến không hợp lệ.')
+        .custom((value) => {
+            if (!mongoose.Types.ObjectId.isValid(value)) {
+                throw new Error('ID điểm đến không hợp lệ.');
+            }
+            return true;
+        }),
 
-    // THÊM QUY TẮC MỚI
     body('paymentMethod')
         .notEmpty().withMessage('Phương thức thanh toán là bắt buộc.')
         .isIn(['cash', 'bank_transfer']).withMessage('Phương thức thanh toán không hợp lệ.')

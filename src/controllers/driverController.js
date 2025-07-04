@@ -1,8 +1,10 @@
 const Driver = require('../models/driver');
+const catchAsync = require('../utils/catchAsync'); // Đảm bảo đã import catchAsync
+
 
 // --- Các hàm không thay đổi logic, chỉ thay đổi cách export ---
 
-const getAllDrivers = async (req, res) => {
+const getAllDrivers = catchAsync(async (req, res) => { // Dùng catchAsync để bắt lỗi
     try {
         let filter = {};
         if (req.user.role === 'provider') {
@@ -16,20 +18,51 @@ const getAllDrivers = async (req, res) => {
         if (req.query.age) filter.age = req.query.age;
         if (req.query.status) filter.status = req.query.status;
 
-        let drivers;
+        // === THÊM LOGIC PHÂN TRANG VÀO ĐÂY ===
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        let driversQuery;
+        let totalCountQuery;
+
         if (req.user.role === 'admin') {
-            drivers = await Driver.find(filter);
+            driversQuery = Driver.find(filter)
+                                 .skip(skip)
+                                 .limit(limit)
+                                 .lean(); // Luôn dùng lean() để tăng hiệu suất
+            totalCountQuery = Driver.countDocuments(filter);
         } else {
-            drivers = await Driver.find(filter)
+            driversQuery = Driver.find(filter)
                 .populate('currentStation', 'name city')
-                .populate('provider', 'name');
+                .populate('provider', 'name') // ProviderShort chỉ cần name
+                                 .skip(skip)
+                                 .limit(limit)
+                                 .lean(); // Luôn dùng lean()
+            totalCountQuery = Driver.countDocuments(filter);
         }
 
-        res.status(200).json({ success: true, count: drivers.length, data: drivers });
+        const [drivers, totalCount] = await Promise.all([
+            driversQuery,
+            totalCountQuery
+        ]);
+
+        const totalPages = Math.ceil(totalCount / limit);
+
+        res.status(200).json({
+        success: true,
+        count: drivers.length, // Số lượng item trong trang hiện tại
+        data: drivers, // Dữ liệu của trang hiện tại
+        pagination: { // Đối tượng pagination
+            totalCount: totalCount,
+            totalPages: totalPages,
+            currentPage: page
+        }
+    });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách tài xế.', error: error.message });
     }
-};
+});
 
 const createDriver = async (req, res) => {
     try {

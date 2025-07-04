@@ -1,328 +1,578 @@
-const mongoose = require('mongoose');
+// src/controllers/tripController.js
 const Trip = require('../models/trip');
-const Provider = require('../models/provider');
-const Driver = require('../models/driver');
+const Itinerary = require('../models/itinerary');
 const Vehicle = require('../models/vehicle');
-const Route = require('../models/route');
+const Driver = require('../models/driver');
 const Station = require('../models/station');
-const Ticket = require('../models/ticket');
-const Review = require('../models/review'); 
+const Route = require('../models/route');
+const Ticket = require('../models/ticket'); // Đảm bảo import Ticket
+const Review = require('../models/review');
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
+const mongoose = require('mongoose');
 
 
-
-
-// === HÀM DÀNH CHO ADMIN / PROVIDER ===
-
-const createTrip = async (req, res) => {
-    try {
-        if (req.user.role == 'admin') {
-            const trip = await Trip.create(req.body);
-            return res.status(201).json({ success: true, data: trip });
-        }
-        // Chống Mass Assignment: Chỉ lấy các trường được phép
-        const { route, vehicle, driver, departureTime, arrivalTime, price, status } = req.body;
-        const allowedData = { route, vehicle, driver, departureTime, arrivalTime, price, status };
-
-        // Middleware `getProviderInfo` đã xử lý việc tìm provider
-        if (req.user.role === 'provider') {
-            allowedData.provider = req.provider._id;
-        } else if (req.user.role === 'admin' && req.body.provider) {
-            // Admin có thể gán cho provider bất kỳ (nếu provider đó tồn tại)
-            allowedData.provider = req.body.provider;
-        } else if (req.user.role === 'admin' && !req.body.provider) {
-            return res.status(400).json({ success: false, message: 'Admin must specify a provider ID.' });
-        }
-
-        const trip = await Trip.create(allowedData);
-        res.status(201).json({
-            success: true,
-            message: 'Trip created successfully',
-            data: trip
-        });
-    } catch (err) {
-        // Kiểm tra lỗi cụ thể
-        if (err.name === 'ValidationError') {
-            return res.status(400).json({ success: false, message: err.message });
-        }
-        res.status(500).json({ success: false, message: 'An error occurred while creating the trip', error: err.message });
-    }
+const sortPriceMatrix = (priceMatrix) => {
+    if (!priceMatrix) return [];
+    return priceMatrix.sort((a, b) => {
+        const originCmp = String(a.originStop).localeCompare(String(b.originStop));
+        if (originCmp !== 0) return originCmp;
+        return String(a.destinationStop).localeCompare(String(b.destinationStop));
+    });
 };
 
-const getAllTrips = async (req, res) => {
-    try {
-        let filter = {};
-        // Nếu là provider, middleware đã tìm và gắn req.provider
-        if (req.user.role === 'provider') {
-            filter.provider = req.provider._id;
-        }
+/**
+ * TẠO MỘT CHUYẾN ĐI MỚI
+ */
+const createTrip = catchAsync(async (req, res, next) => {
+    // Lấy itinerary đã được validate từ req.itinerary
+    const itinerary = req.itinerary; // Đã được set bởi tripValidator
+    const { vehicleId, driverId, priceMatrix, schedule } = req.body;
 
-        // --- THÊM DÒNG DEBUG NÀY ---
-        console.log('--- DEBUG: getAllTrips Controller ---');
-        console.log('Filter object being used:', filter);
-        console.log('-----------------------------------');
-        // -----------------------------------
+    // 1. Kiểm tra các tài nguyên Vehicle và Driver có tồn tại và thuộc sở hữu của provider không
+    // (Itinerary đã được kiểm tra trong validator)
+    const [vehicle, driver] = await Promise.all([
+        Vehicle.findOne({ _id: vehicleId, provider: req.provider._id }),
+        Driver.findOne({ _id: driverId, provider: req.provider._id })
+    ]);
 
-        // Logic Phân trang (Pagination)
-        const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
-        const limit = parseInt(req.query.limit) || 10; // Số lượng bản ghi mỗi trang, mặc định là 10
-        const skip = (page - 1) * limit; // Số bản ghi cần bỏ qua
+    if (!vehicle) return next(new AppError('Xe không hợp lệ hoặc không thuộc sở hữu của bạn.', 404));
+    if (!driver) return next(new AppError('Tài xế không hợp lệ hoặc không thuộc sở hữu của bạn.', 404));
 
-        let trips, totalCount;
-        if (req.user.role === 'admin') {
-            [trips, totalCount] = await Promise.all([
-                Trip.find(filter)
-                    .sort({ departureTime: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                Trip.countDocuments(filter)
-            ]);
-        } else {
-            [trips, totalCount] = await Promise.all([
-                Trip.find(filter)
-                    .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
-                    .populate('vehicle')
-                    .populate('driver')
-                    .populate('provider', 'name')
-                    .sort({ departureTime: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
-                Trip.countDocuments(filter)
-            ]);
-        }
+    // Lấy departureTime và arrivalTime từ schedule đã được validate
+    const departureTime = schedule[0].estimatedDepartureTime;
+    const arrivalTime = schedule[schedule.length - 1].estimatedArrivalTime;
 
-        res.status(200).json({
-            success: true,
-            count: trips.length,
-            totalCount,
-            totalPages: Math.ceil(totalCount / limit),
-            currentPage: page,
-            data: trips
-        });    
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+    const sortedPriceMatrix = sortPriceMatrix(priceMatrix); // SẮP XẾP TRƯỚC KHI TẠO
+
+    // 2. Xây dựng dữ liệu cho chuyến đi mới
+    const tripData = {
+        itinerary: itinerary._id, // Sử dụng ID từ itinerary đã được xác thực
+        vehicle: vehicleId,
+        driver: driverId,
+        provider: req.provider._id,
+        priceMatrix: sortedPriceMatrix, // SỬ DỤNG MẢNG ĐÃ SẮP XẾP
+        schedule,
+        departureTime, // Lấy từ schedule
+        arrivalTime,   // Lấy từ schedule
+    };
+
+    const newTrip = await Trip.create(tripData);
+    res.status(201).json({ success: true, data: newTrip });
+});
+
+
+/**
+ * LẤY DANH SÁCH CHUYẾN ĐI (CÓ PHÂN TRANG)
+ */
+// src/controllers/tripController.js
+
+// ... (các import và hàm khác)
+
+/**
+ * LẤY DANH SÁCH CHUYẾN ĐI (CÓ PHÂN TRANG)
+ */
+const getAllTrips = catchAsync(async (req, res, next) => {
+    let filter = {};
+    const { role } = req.user;
+
+    if (role === 'provider') {
+        filter.provider = req.provider._id;
+    } else if (role === 'admin' && req.query.provider) {
+        filter.provider = req.query.provider;
     }
-};
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-const getTripById = async (req, res) => {
-    try {
-        let trip;
-        if (req.user.role === 'admin') {
-            trip = await Trip.findById(req.params.tripId);
-        } else {
-            trip = await Trip.findById(req.params.tripId)
-                .populate({ path: 'route', populate: [{ path: 'originStation', select: 'name address' }, { path: 'destinationStation', select: 'name address' }] })
-                .populate('vehicle')
-                .populate('driver')
-                .populate('provider');
-        }
+    let query = Trip.find(filter);
 
-        if (!trip) {
-            return res.status(404).json({ success: false, message: 'Trip not found' });
-        }        
-        
-        // If provider, only allow access to own trips
-        if (req.user.role === 'provider' && String(trip.provider) !== String(req.provider._id)) {
-            return res.status(403).json({ message: 'Forbidden: Not your trip' });
-        }
-
-        res.status(200).json({ success: true, data: trip });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-};
-
-
-const updateTrip = async (req, res) => {
-    try {
-        if (req.user.role === 'admin'){
-            const trip = await Trip.findByIdAndUpdate(req.params.tripId, req.body, { new: true, runValidators: true });
-            return res.status(200).json({ success: true, data: trip });
-        }
-        const trip = await Trip.findById(req.params.tripId);
-        if (!trip){
-            return res.status(404).json({ success: false, message: 'Trip not found' });
-        }
-
-        // Kiểm tra quyền sở hữu nếu là provider
-        if (req.user.role === 'provider' && String(trip.provider) !== String(req.provider._id)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Not your trip' });
-        }
-
-        // Chống Mass Assignment
-        const { vehicle, driver, departureTime, arrivalTime, price, status } = req.body;
-        const updateData = { vehicle, driver, departureTime, arrivalTime, price, status };
-
-        // Loại bỏ các trường undefined để không ghi đè giá trị cũ
-        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-
-        const updatedTrip = await Trip.findByIdAndUpdate(req.params.tripId, updateData, { new: true, runValidators: true })
-            .populate({ path: 'route', populate: [{ path: 'originStation' }, { path: 'destinationStation' }] })
-            .populate('vehicle')
-            .populate('driver')
-            .populate('provider');
-
-        // Logic cập nhật bến đỗ cho tài xế và xe
-        if (req.body.status === 'completed') {
-            const destinationStationId = updatedTrip.route?.destinationStation?._id;
-            if (updatedTrip.driver && destinationStationId) {
-                await Driver.findByIdAndUpdate(updatedTrip.driver._id, { currentStation: destinationStationId });
-            }
-            if (updatedTrip.vehicle && destinationStationId) {
-                await Vehicle.findByIdAndUpdate(updatedTrip.vehicle._id, { currentStation: destinationStationId });
-            }
-        }
-        
-        res.status(200).json({ success: true, data: updatedTrip });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-};
-
-const deleteTrip = async (req, res) => {
-    try {
-        const trip = await Trip.findById(req.params.tripId);
-        if (!trip){
-            return res.status(404).json({ success: false, message: 'Trip not found' });
-        }
-        
-        // Only admin or the owning provider can delete
-        if (req.user.role === 'provider' && String(trip.provider) !== String(req.provider._id)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Not your trip' });
-        }
-
-        await Trip.findByIdAndDelete(req.params.tripId);
-        res.status(200).json({ success: true, message: 'Trip deleted successfully' });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-};
-
-
-// === HÀM DÀNH CHO PUBLIC ===
-
-const getFeaturedTrips = async (req, res) => {
-    try {
-        const now = new Date();
-
-        const trips = await Trip.find({
-            status: 'scheduled',
-            departureTime: { $gt: now }
-        })
-        .sort({ departureTime: 1 }) // Sắp xếp theo chuyến đi sớm nhất
-        .limit(10) // Chỉ lấy 10 chuyến đi
-        .populate({
-            path: 'route',
-            select: 'originStation destinationStation', // Chọn lọc trường
-            populate: [
-                { path: 'originStation', select: 'name city' },
-                { path: 'destinationStation', select: 'name city' }
-            ]
-        })
-        .populate('provider', 'name') // Chỉ lấy tên nhà xe
-        .populate('vehicle', 'type') // Chỉ lấy loại xe
-        .lean(); // Dùng lean() để tối ưu
-
-        res.status(200).json({ success: true, data: trips });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-};
-
-
-const searchTripsByCity = async (req, res) => {
-    try {
-    // --- Bước 1: Lấy dữ liệu đã được "làm sạch" và kiểm tra bởi validator ---
-        const { originCity, destinationCity, departureDate } = req.query;
-
-
-    // --- Bước 2: Tìm kiếm ID các trạm ở thành phố đi và đến (chạy song song) ---
-        const [ originStation, destinationStation ] = await Promise.all([
-            Station.find( { city: originCity }).select('_id').lean(),
-            Station.find( { city: destinationCity }).select('_id').lean()
-        ]);
-
-        if (originStation.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: `Không tìm thấy bến xe nào ở thành phố đi: ${originCity}` 
-            });
-        }
-
-        if (destinationStation.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: `Không tìm thấy bến xe nào ở thành phố đến: ${destinationCity}` 
-            });
-        }
-
-    // --- Bước 3: Tìm các tuyến đường (routes) phù hợp ---
-        const originStationIds = originStation.map(station => station._id);
-        const destinationStationIds = destinationStation.map(station => station._id);
-
-        const routes = await Route.find({
-            originStation: { $in: originStationIds },
-            destinationStation: { $in: destinationStationIds },
-        }).select('_id').lean();
-
-        if (routes.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: `Không tìm thấy tuyến đường nào từ ${originCity} đến ${destinationCity}`
-            });
-        }
-
-    // --- Bước 4: Tìm các chuyến đi (trips) dựa trên routes và ngày đi ---
-        const routeIds = routes.map(route => route._id);
-
-        const startOfDay = new Date(departureDate);
-        startOfDay.setUTCHours(0, 0, 0, 0);
-
-        const endOfDay = new Date(departureDate);
-        endOfDay.setUTCHours(23, 59, 59, 999);
-
-        const trips = await Trip.find({
-            route: { $in: routeIds },
-            departureTime: {
-                 $gte: startOfDay, 
-                 $lte: endOfDay 
+    // Populate itinerary fully, and its nested baseRoute and stops.station
+    query = query.populate({
+        path: 'itinerary',
+        populate: [
+            {
+                path: 'baseRoute',
+                populate: [
+                    { path: 'originStation', select: 'name city' },
+                    { path: 'destinationStation', select: 'name city' },
+                    { path: 'ownerProvider', select: 'name' }
+                ]
             },
-            status : 'scheduled'
-        })
-        .populate({
-            path: 'route',
-            populate: [
-                { path: 'originStation', select: 'name city address coordinates' },
-                { path: 'destinationStation', select: 'name city address coordinates' }
-            ]
-                
-        })
-        .populate('vehicle', 'type licensePlate capacity image')
-        .populate('provider', 'name phone');
-        if (trips.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: `Không tìm thấy chuyến đi nào từ ${originCity} đến ${destinationCity} vào ngày ${departureDate}`
-            });
+            // 2. THÊM POPULATE NÀY: Populate các Station bên trong mảng 'stops' của Itinerary
+            {
+                path: 'stops.station', // Đường dẫn đúng để populate station trong mỗi stop
+                select: 'name address city type' // Chọn các trường cần thiết cho Station.kt của bạn (Không có coordinates)
+            }
+        ]
+    })
+    // ... (các populate cho vehicle, driver, provider hiện có)
+    .populate({
+        path: 'vehicle',
+        // CHỈ POPULATE CÁC TRƯỜNG MÀ FRONTEND (VehicleTripNested.kt) CẦN
+        // Hiện tại là 'type' và 'licensePlate'.
+        // Không populate currentStation hay provider ở đây, vì VehicleTripNested không cần.
+        // Nếu bạn muốn hiển thị currentStation/provider trong Trip list, bạn sẽ phải populate chúng ở đây
+        // và thêm chúng vào VehicleTripNested.kt
+        select: 'type licensePlate' // Chỉ lấy các trường này
+    })
+    .populate({
+        path: 'driver',
+        // CHỈ POPULATE CÁC TRƯỜNG MÀ FRONTEND (DriverTripNested.kt) CẦN
+        select: 'name' // Chỉ lấy tên
+    })
+    .populate('provider', 'name'); // Populate provider của Trip
+
+    const [trips, totalCount] = await Promise.all([
+        query.sort({ departureTime: -1 }).skip(skip).limit(limit).lean(),
+        Trip.countDocuments(filter)
+    ]);
+
+    // === BƯỚC MỚI: SẮP XẾP priceMatrix TRƯỚC KHI GỬI ĐI ===
+   // === BƯỚC MỚI: SẮP XẾP priceMatrix TRƯỚC KHI GỬI ĐI ===
+    const finalTrips = trips.map(trip => {
+        const sanitizedTrip = { ...trip };
+        if (sanitizedTrip.priceMatrix) {
+            sanitizedTrip.priceMatrix = sortPriceMatrix(sanitizedTrip.priceMatrix);
         }
+        // ... (Sanitization cho ownerProvider nếu cần)
+        if (sanitizedTrip.itinerary && sanitizedTrip.itinerary.baseRoute &&
+            sanitizedTrip.itinerary.baseRoute.ownerProvider && typeof sanitizedTrip.itinerary.baseRoute.ownerProvider === 'string') {
+            sanitizedTrip.itinerary = {
+                ...sanitizedTrip.itinerary,
+                baseRoute: {
+                    ...sanitizedTrip.itinerary.baseRoute,
+                    ownerProvider: null
+                }
+            };
+        }
+        return sanitizedTrip;
+    });
+    // ====================================================================================================
 
-        res.status(200).json({
-            success: true,
-            message: 'Trips found successfully',
-            data: trips
-        });
+    const totalPages = Math.ceil(totalCount / limit);
 
-    } catch (error){
-        console.error('Error searching trips by city:', error);
-        res.status(500).json({
-            success: false,
-            message: 'An error occurred while searching for trips',
-            error: error.message
-        });
-    } 
-}
+    res.status(200).json({
+        success: true,
+        pagination: { totalCount, totalPages, currentPage: page },
+        data: finalTrips // TRẢ VỀ DỮ LIỆU ĐÃ SẮP XẾP VÀ LÀM SẠCH
+    });
+});
+
+
+/**
+ * LẤY CHI TIẾT MỘT CHUYẾN ĐI
+ */
+const getTripById = catchAsync(async (req, res, next) => {
+    const { role } = req.user;
+    let query = { _id: req.params.id };
+
+    if (role === 'provider') {
+        query.provider = req.provider._id;
+    }
+
+    const trip = await Trip.findOne(query)
+        .populate({
+            path: 'itinerary',
+            populate: { path: 'stops.station baseRoute', populate: { path: 'originStation destinationStation', select: 'name city' } }
+        })
+        .populate('vehicle')
+        .populate('driver')
+        .lean();
+
+
+    if (!trip) {
+        return next(new AppError('Không tìm thấy chuyến đi hoặc bạn không có quyền truy cập.', 404));
+    }
+
+    // SẮP XẾP priceMatrix TRƯỚC KHI GỬI ĐI
+    if (trip.priceMatrix) {
+        trip.priceMatrix = sortPriceMatrix(trip.priceMatrix);
+    }
+    // ... (Sanitization cho ownerProvider)
+    if (trip.itinerary && trip.itinerary.baseRoute &&
+        trip.itinerary.baseRoute.ownerProvider && typeof trip.itinerary.baseRoute.ownerProvider === 'string') {
+        trip.itinerary.baseRoute.ownerProvider = null;
+    }
+
+
+    res.status(200).json({ success: true, data: trip });
+});
+
+/**
+ * CẬP NHẬT MỘT CHUYẾN ĐI
+ * (Cho phép cập nhật toàn bộ mảng priceMatrix/schedule nếu được cung cấp)
+ * departureTime và arrivalTime sẽ tự động được cập nhật lại nếu schedule được cập nhật.
+ */
+const updateTrip = catchAsync(async (req, res, next) => {
+    const allowedUpdates = ['itineraryId', 'vehicleId', 'driverId', 'status', 'priceMatrix', 'schedule']; // departureTime và arrivalTime không còn trong đây
+    const updateData = {};
+
+    Object.keys(req.body).forEach(key => {
+        if (allowedUpdates.includes(key) && req.body[key] !== undefined) {
+            if (key === 'itineraryId') {
+                updateData.itinerary = req.body[key];
+            } else if (key === 'vehicleId') {
+                updateData.vehicle = req.body[key];
+            } else if (key === 'driverId') {
+                updateData.driver = req.body[key];
+            } else if (key === 'priceMatrix') {
+                updateData.priceMatrix = sortPriceMatrix(req.body[key]); // SẮP XẾP TRƯỚC KHI CẬP NHẬT
+            }
+            else {
+                updateData[key] = req.body[key];
+            }
+        }
+    });
+    
+    // Nếu schedule được cập nhật, tự động cập nhật departureTime và arrivalTime
+    if (updateData.schedule && updateData.schedule.length >= 2) {
+        updateData.departureTime = updateData.schedule[0].estimatedDepartureTime;
+        updateData.arrivalTime = updateData.schedule[updateData.schedule.length - 1].estimatedArrivalTime;
+    } else if (updateData.schedule && updateData.schedule.length < 2) {
+        // Xử lý trường hợp schedule không hợp lệ (lẽ ra đã bị bắt bởi validator)
+        return next(new AppError('Lịch trình phải có ít nhất 2 điểm dừng.', 400));
+    }
+
+    if (Object.keys(updateData).length === 0) {
+        return next(new AppError('Không có dữ liệu hợp lệ để cập nhật.', 400));
+    }
+
+    let query = { _id: req.params.id };
+    if (req.user.role === 'provider') {
+        query.provider = req.provider._id;
+    }
+
+    // Kiểm tra quyền sở hữu cho vehicle và driver nếu chúng được cập nhật
+    if (updateData.vehicle) {
+        const vehicle = await Vehicle.findOne({ _id: updateData.vehicle, provider: req.provider._id });
+        if (!vehicle) return next(new AppError('Xe không hợp lệ hoặc không thuộc sở hữu của bạn.', 404));
+    }
+    if (updateData.driver) {
+        const driver = await Driver.findOne({ _id: updateData.driver, provider: req.provider._id });
+        if (!driver) return next(new AppError('Tài xế không hợp lệ hoặc không thuộc sở hữu của bạn.', 404));
+    }
+
+    const updatedTrip = await Trip.findOneAndUpdate(query, updateData, { new: true, runValidators: true });
+
+    if (!updatedTrip) {
+        return next(new AppError('Không tìm thấy chuyến đi hoặc bạn không có quyền cập nhật.', 404));
+    }
+
+    res.status(200).json({ success: true, data: updatedTrip });
+});
+
+/**
+ * XÓA MỘT CHUYẾN ĐI
+ */
+const deleteTrip = catchAsync(async (req, res, next) => {
+    let query = { _id: req.params.id };
+    if (req.user.role === 'provider') {
+        query.provider = req.provider._id;
+    }
+
+    const trip = await Trip.findOneAndDelete(query);
+
+
+    if (!trip) {
+        return next(new AppError('Không tìm thấy chuyến đi hoặc bạn không có quyền xóa.', 404));
+    }
+
+    res.status(204).json({ success: true, data: null });
+});
+
+
+// src/controllers/tripController.js
+
+// ... (các hàm và import khác)
+
+/**
+ * TÌM KIẾM CHUYẾN ĐI (PUBLIC API) - ĐÃ TỐI ƯU HÓA BẰNG AGGREGATION PIPELINE
+ */
+const searchTrips = catchAsync(async (req, res, next) => {
+    const { originCity, destinationCity, departureDate } = req.query;
+
+    const queryDate = new Date(departureDate); // Ngày mà người dùng muốn khởi hành
+    queryDate.setUTCHours(0, 0, 0, 0); // Đảm bảo chỉ lấy ngày
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    let minDepartureTimeForSearch = new Date(queryDate);
+    // Nếu ngày tìm kiếm là hôm nay, thời gian tối thiểu phải là hiện tại + 1 ngày
+    // Chuyến đi phải khởi hành ít nhất 1 ngày sau thời điểm hiện tại tại điểm dừng
+    if (queryDate.getTime() === today.getTime()) {
+         minDepartureTimeForSearch = new Date(Date.now() + 24 * 60 * 60 * 1000); // Tối thiểu 24 giờ sau hiện tại
+    }
+
+    const maxDepartureTimeForSearch = new Date(queryDate);
+    maxDepartureTimeForSearch.setUTCHours(23, 59, 59, 999); // Cuối ngày tìm kiếm
+
+    const pipeline = [
+        // Giai đoạn 1: Lọc các chuyến đi theo trạng thái và ngày khởi hành TẠI ĐIỂM DỪNG ĐẦU TIÊN CỦA CHẶNG TÌM KIẾM
+        {
+            $match: {
+                status: { $in: ['scheduled', 'in-progress'] }, // Cho phép tìm cả scheduled và in-progress
+                // Các chuyến đi phải có ít nhất một điểm dừng trong schedule có thời gian đi trong khoảng tìm kiếm
+                'schedule.estimatedDepartureTime': {
+                    $gte: minDepartureTimeForSearch,
+                    $lte: maxDepartureTimeForSearch
+                }
+            }
+        },
+
+        // Giai đoạn 2: Lấy thông tin Itinerary
+        {
+            $lookup: {
+                from: 'itineraries',
+                localField: 'itinerary',
+                foreignField: '_id',
+                as: 'itineraryDetails'
+            }
+        },
+        {
+            $unwind: '$itineraryDetails'
+        },
+        // Giai đoạn 3: Lấy thông tin các Station trong Itinerary.stops
+        {
+            $lookup: {
+                from: 'stations',
+                localField: 'itineraryDetails.stops.station',
+                foreignField: '_id',
+                as: 'itineraryStations'
+            }
+        },
+        // Giai đoạn 4: Lấy thông tin các Station trong schedule (đã có)
+        {
+            $lookup: {
+                from: 'stations',
+                localField: 'schedule.station',
+                foreignField: '_id',
+                as: 'scheduleStations'
+            }
+        },
+        // Giai đoạn 5: Lọc theo thành phố đi và đến
+        {
+            $addFields: {
+                originStationIdsByCity: {
+                    $map: {
+                        input: {
+                            $filter: {
+                                input: '$itineraryStations',
+                                as: 'station',
+                                cond: { $eq: ['$$station.city', originCity] }
+                            }
+                        },
+                        as: 'filteredStation',
+                        in: '$$filteredStation._id'
+                    }
+                },
+                destinationStationIdsByCity: {
+                    $map: {
+                        input: {
+                            $filter: {
+                                input: '$itineraryStations',
+                                as: 'station',
+                                cond: { $eq: ['$$station.city', destinationCity] }
+                            }
+                        },
+                        as: 'filteredStation',
+                        in: '$$filteredStation._id'
+                    }
+                }
+            }
+        },
+        {
+            $match: {
+                'originStationIdsByCity.0': { $exists: true },
+                'destinationStationIdsByCity.0': { $exists: true }
+            }
+        },
+
+        // Giai đoạn 6: Kiểm tra thứ tự các điểm dừng trong schedule và thời gian khởi hành hợp lệ
+        {
+            $addFields: {
+                // Tạo một mảng các schedule entries hợp lệ (origin stop)
+                validOriginScheduleEntries: {
+                    $filter: {
+                        input: '$schedule',
+                        as: 'sch',
+                        cond: {
+                            $and: [
+                                { $in: ['$$sch.station', '$originStationIdsByCity'] },
+                                { $gte: ['$$sch.estimatedDepartureTime', minDepartureTimeForSearch] }, // Phải khởi hành sau thời gian tối thiểu
+                                { $lte: ['$$sch.estimatedDepartureTime', maxDepartureTimeForSearch] }  // Và trước thời gian tối đa
+                            ]
+                        }
+                    }
+                },
+                // Tạo một mảng các schedule entries hợp lệ (destination stop)
+                validDestinationScheduleEntries: {
+                    $filter: {
+                        input: '$schedule',
+                        as: 'sch',
+                        cond: {
+                            $in: ['$$sch.station', '$destinationStationIdsByCity']
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $match: {
+                'validOriginScheduleEntries.0': { $exists: true }, // Phải có ít nhất 1 điểm đi hợp lệ trong schedule
+                'validDestinationScheduleEntries.0': { $exists: true } // Phải có ít nhất 1 điểm đến hợp lệ trong schedule
+            }
+        },
+        {
+            $addFields: {
+                // Tìm vị trí (index) của điểm đi đầu tiên và điểm đến cuối cùng HỢP LỆ trong schedule
+                firstValidOriginIndex: {
+                    $indexOfArray: [
+                        '$schedule.station',
+                        { $arrayElemAt: ['$validOriginScheduleEntries.station', 0] } // ID của điểm đi đầu tiên hợp lệ
+                    ]
+                },
+                lastValidDestinationIndex: {
+                    $lastIndexOfArray: [
+                        '$schedule.station',
+                        { $arrayElemAt: ['$validDestinationScheduleEntries.station', { $subtract: [{ $size: '$validDestinationScheduleEntries' }, 1] }] } // ID của điểm đến cuối cùng hợp lệ
+                    ]
+                }
+            }
+        },
+        {
+            $match: {
+                // Đảm bảo điểm đi hợp lệ xuất hiện trước điểm đến hợp lệ
+                $expr: { $lt: ['$firstValidOriginIndex', '$lastValidDestinationIndex'] }
+            }
+        },
+
+        // Giai đoạn 7: Tính toán giá cho phân đoạn đã chọn
+        {
+            $addFields: {
+                priceForSelectedSegment: {
+                    $let: {
+                        vars: {
+                            matchedPriceEntry: {
+                                $arrayElemAt: [
+                                    {
+                                        $filter: {
+                                            input: '$priceMatrix',
+                                            as: 'priceEntry',
+                                            cond: {
+                                                $and: [
+                                                    { $in: ['$$priceEntry.originStop', '$originStationIdsByCity'] },
+                                                    { $in: ['$$priceEntry.destinationStop', '$destinationStationIdsByCity'] }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    0
+                                ]
+                            }
+                        },
+                        in: '$$matchedPriceEntry.price'
+                    }
+                }
+            }
+        },
+        // Giai đoạn 8: Populate Vehicle, Driver, Provider
+        {
+            $lookup: {
+                from: 'vehicles',
+                localField: 'vehicle',
+                foreignField: '_id',
+                as: 'vehicleDetails'
+            }
+        },
+        {
+            $unwind: { path: '$vehicleDetails', preserveNullAndEmptyArrays: true }
+        },
+        {
+            $lookup: {
+                from: 'drivers',
+                localField: 'driver',
+                foreignField: '_id',
+                as: 'driverDetails'
+            }
+        },
+        {
+            $unwind: { path: '$driverDetails', preserveNullAndEmptyArrays: true }
+        },
+        {
+            $lookup: {
+                from: 'providers',
+                localField: 'provider',
+                foreignField: '_id',
+                as: 'providerDetails'
+            }
+        },
+        {
+            $unwind: { path: '$providerDetails', preserveNullAndEmptyArrays: true }
+        },
+        // Giai đoạn 9: Project các trường cần thiết và định dạng lại output
+        {
+            $project: {
+                _id: 1,
+                itinerary: {
+                    _id: '$itineraryDetails._id',
+                    name: '$itineraryDetails.name',
+                    stops: {
+                        $map: {
+                            input: '$itineraryDetails.stops',
+                            as: 'stop',
+                            in: {
+                                station: {
+                                    $arrayElemAt: [
+                                        {
+                                            $filter: {
+                                                input: '$itineraryStations',
+                                                as: 's',
+                                                cond: { $eq: ['$$s._id', '$$stop.station'] }
+                                            }
+                                        },
+                                        0
+                                    ]
+                                },
+                                order: '$$stop.order'
+                            }
+                        }
+                    }
+                },
+                vehicle: {
+                    _id: '$vehicleDetails._id',
+                    type: '$vehicleDetails.type',
+                    licensePlate: '$vehicleDetails.licensePlate',
+                    capacity: '$vehicleDetails.capacity'
+                },
+                driver: {
+                    _id: '$driverDetails._id',
+                    name: '$driverDetails.name'
+                },
+                provider: {
+                    _id: '$providerDetails._id',
+                    name: '$providerDetails.name'
+                },
+                priceMatrix: 1,
+                schedule: 1,
+                departureTime: 1, // Tổng thời gian đi của chuyến
+                arrivalTime: 1, // Tổng thời gian đến của chuyến
+                status: 1,
+                priceForSelectedSegment: 1, // Giá cho chặng tìm kiếm
+                // Có thể thêm thông tin thời gian cụ thể cho chặng tìm kiếm
+                // estimatedDepartureTimeFromOriginCity: { $arrayElemAt: ['$validOriginScheduleEntries.estimatedDepartureTime', 0] },
+                // estimatedArrivalTimeToDestinationCity: { $arrayElemAt: ['$validDestinationScheduleEntries.estimatedArrivalTime', { $subtract: [{ $size: '$validDestinationScheduleEntries' }, 1] }] }
+            }
+
+        }
+    ];
+
+    const trips = await Trip.aggregate(pipeline);
+
+    res.status(200).json({ success: true, data: trips });
+});
 
 
 const getTicketsForTrip = async (req, res) => {
@@ -383,8 +633,7 @@ module.exports = {
     getAllTrips,
     updateTrip, 
     deleteTrip,
-    searchTripsByCity,
+    searchTrips,
     getTicketsForTrip,
-    getFeaturedTrips,
     getReviewsForTrip
 };
