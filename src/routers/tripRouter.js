@@ -4,101 +4,51 @@ const tripController = require('../controllers/tripController');
 const { loggedin, ensureRole } = require('../middlewares/identification');
 const { isProvider } = require('../middlewares/roleMiddleware');
 const { handleValidationErrors } = require('../middlewares/validationHandler');
-
+// THÊM IMPORT VALIDATOR
 const {
     validateSearchTrip,
-    validateGetAllTrips,
     validateCreateTrip,
-    validateUpdateTrip,
-    validateIdInParams
+    validateUpdateTrip
 } = require('../validators/tripValidator');
 
+// Middleware chung cho các route cần quyền admin hoặc provider
+const authAccess = [loggedin, ensureRole(['admin', 'provider']), isProvider];
 
-
-// === CÁC ROUTE CÔNG KHAI (KHÔNG CẦN ĐĂNG NHẬP) ===
-
+// === CÁC ROUTE CÔNG KHAI ===
 router.get(
-    '/featured',
-     tripController.getFeaturedTrips
-);
-
-
-router.get(
-    '/search', 
-    validateSearchTrip,       // 1. Áp dụng quy tắc
-    handleValidationErrors,   // 2. Xử lý lỗi nếu có
-    tripController.searchTripsByCity // 3. Chạy controller
-);
-
-router.get(
-    '/:tripId/tickets', 
-    validateIdInParams,
+    '/search',
+    validateSearchTrip,
     handleValidationErrors,
-    tripController.getTicketsForTrip
+    tripController.searchTrips
 );
 
-router.get(
-    '/:tripId/reviews',
-    validateIdInParams,
-    handleValidationErrors,
-    tripController.getReviewsForTrip
-);
+// === CÁC ROUTE CẦN XÁC THỰC ===
+router.route('/')
+    .get(
+        authAccess,
+        tripController.getAllTrips
+    )
+    .post(
+        [loggedin, ensureRole(['provider']), isProvider], // Chỉ provider được tạo
+        validateCreateTrip,
+        handleValidationErrors,
+        tripController.createTrip
+    );
 
-
-// === CÁC ROUTE CẦN XÁC THỰC VÀ PHÂN QUYỀN ===
-// Get all trips (admin, provider)
-router.get(
-    '/', 
-    loggedin, 
-    ensureRole(['admin', 'provider']), 
-    isProvider,
-    validateGetAllTrips,      // Áp dụng quy tắc phân trang
-    handleValidationErrors,
-    tripController.getAllTrips
-);
-
-// Get trip by ID
-router.get(
-    '/:tripId', 
-    loggedin, 
-    ensureRole(['admin', 'provider']), 
-    isProvider,
-    validateIdInParams,       // Áp dụng quy tắc kiểm tra ID
-    handleValidationErrors,
-    tripController.getTripById
-);
-
-// Create trip
-router.post(
-    '/', 
-    loggedin, 
-    ensureRole(['admin', 'provider']), 
-    isProvider,
-    validateCreateTrip,       // Áp dụng quy tắc tạo trip
-    handleValidationErrors,
-    tripController.createTrip
-);
-
-// Update trip
-router.patch(
-    '/:tripId', 
-    loggedin, 
-    ensureRole(['admin', 'provider']), 
-    isProvider,
-    validateUpdateTrip,       // Áp dụng quy tắc cập nhật trip
-    handleValidationErrors,
-    tripController.updateTrip
-);
-
-// Delete trip
-router.delete(
-    '/:tripId', 
-    loggedin, 
-    ensureRole(['admin', 'provider']), 
-    isProvider,
-    validateIdInParams,       // Áp dụng quy tắc kiểm tra ID
-    handleValidationErrors,
-    tripController.deleteTrip
-);
+router.route('/:id')
+    .get(
+        authAccess,
+        tripController.getTripById
+    )
+    .patch(
+        authAccess,
+        validateUpdateTrip,
+        handleValidationErrors,
+        tripController.updateTrip
+    )
+    .delete(
+        authAccess,
+        tripController.deleteTrip
+    );
 
 module.exports = router;

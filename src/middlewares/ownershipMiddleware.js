@@ -51,7 +51,7 @@ exports.checkStationOwnership = catchAsync(async (req, res, next) => {
     // GIẢI THÍCH: Middleware này dùng cho các hành động GHI (update/delete).
     // Provider chỉ được phép thực hiện trên các 'pickup_point' mà họ sở hữu.
     if (req.user.role === 'provider') {
-        if (station.type !== 'pickup_point' || !station.ownerProvider || String(station.ownerProvider) !== String(req.provider._id)) {
+        if (station.type !== 'private_point' || !station.ownerProvider || String(station.ownerProvider) !== String(req.provider._id)) {
             return next(new AppError('Bạn không có quyền chỉnh sửa tài nguyên này.', 403));
         }
     }

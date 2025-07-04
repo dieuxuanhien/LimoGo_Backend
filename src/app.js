@@ -14,6 +14,7 @@ const authRouter = require('./routers/authRouter');
 const bookingRouter = require('./routers/bookingRouter');
 const driverRouter = require('./routers/driverRouter');
 const issueRouter = require('./routers/issueRouter');
+const itineraryRouter = require('./routers/itineraryRouter');
 const providerRouter = require('./routers/providerRouter');
 const reviewRouter = require('./routers/reviewRouter');
 const routeRouter = require('./routers/routeRouter');
@@ -22,6 +23,7 @@ const ticketRouter = require('./routers/ticketRouter');
 const tripRouter = require('./routers/tripRouter');
 const userRouter = require('./routers/userRouter');
 const vehicleRouter = require('./routers/vehicleRouter');
+
 
 const app = express();
 
@@ -37,6 +39,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/bookings', bookingRouter);  // Sửa từ booking thành bookings
 app.use('/api/drivers', driverRouter);
 app.use('/api/issues', issueRouter);
+app.use('/api/itineraries', itineraryRouter);
 app.use('/api/providers', providerRouter);
 app.use('/api/reviews', reviewRouter);
 app.use('/api/routes', routeRouter);

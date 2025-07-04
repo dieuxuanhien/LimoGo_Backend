@@ -102,6 +102,7 @@ exports.updateStation = catchAsync(async (req, res, next) => {
         const user = await user.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         res.status(200).json({ success: true, data: user });
     }
+    
     const stationId = req.params.id;
     const role = req.user.userRole;
 

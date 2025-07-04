@@ -8,6 +8,9 @@ const request = require('request');
 const moment = require('moment');
 const { log } = require('console');
 const { sortObject } = require('../utils/sortObject');
+const { isSeatSegmentOverlapped } = require('../utils/bookingHelpers'); // Import helper mới
+
+
 // API: POST /booking/lock - Khóa ghế
 exports.lockSeat = async (req, res) => {
     const { ticketId } = req.body;
@@ -42,7 +45,8 @@ exports.lockSeat = async (req, res) => {
 
 // API: POST /booking/lock-many - Khóa nhiều ghế cùng lúc
 exports.lockMultipleSeats = async (req, res) => {
-    const { ticketIds } = req.body; // Nhận một mảng các ticketId
+    // Thêm tripId, originStopId, destinationStopId vào req.body
+    const { tripId, ticketIds, originStopId, destinationStopId } = req.body; 
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -50,19 +54,98 @@ exports.lockMultipleSeats = async (req, res) => {
         if (!ticketIds || !Array.isArray(ticketIds) || ticketIds.length === 0) {
             throw new Error('ticketIds phải là một mảng và không được rỗng.');
         }
+        if (!mongoose.Types.ObjectId.isValid(tripId) || !mongoose.Types.ObjectId.isValid(originStopId) || !mongoose.Types.ObjectId.isValid(destinationStopId)) {
+            throw new Error('ID chuyến đi, điểm đi hoặc điểm đến không hợp lệ.');
+        }
 
         const now = new Date();
-        const lockExpires = new Date(now.getTime() + 10 * 60 * 1000); // Khóa trong 10 phút
+        const lockExpires = new Date(now.getTime() + 10 * 60 * 1000);
 
-        // 1. Cập nhật tất cả các vé hợp lệ trong một lần
+        // 1. Lấy thông tin chuyến đi và hành trình của nó
+        // Cần populated Itinerary và Itinerary.stops.station để có thứ tự điểm dừng
+        const trip = await Trip.findById(tripId)
+            .populate({
+                path: 'itinerary',
+                select: 'stops', // Chỉ cần stops
+                populate: {
+                    path: 'stops.station',
+                    select: '_id name', // Chỉ cần _id và name của station
+                }
+            }).session(session);
+
+        if (!trip) {
+            throw new Error('Chuyến đi không tồn tại.');
+        }
+        if (!trip.itinerary || !trip.itinerary.stops || trip.itinerary.stops.length < 2) {
+            throw new Error('Hành trình của chuyến đi không hợp lệ.');
+        }
+
+        // Lấy thứ tự các điểm dừng trong hành trình
+        const itineraryStopsOrdered = trip.itinerary.stops
+            .sort((a, b) => a.order - b.order) // Sắp xếp theo order
+            .map(s => String(s.station._id)); // Chỉ lấy ID của station
+
+        // Kiểm tra xem chặng yêu cầu có hợp lệ trên hành trình không
+        const requestedOriginIdx = itineraryStopsOrdered.indexOf(String(originStopId));
+        const requestedDestinationIdx = itineraryStopsOrdered.indexOf(String(destinationStopId));
+
+        if (requestedOriginIdx === -1 || requestedDestinationIdx === -1 || requestedOriginIdx >= requestedDestinationIdx) {
+            throw new Error('Chặng bạn muốn đặt (điểm đi đến điểm đến) không hợp lệ trên chuyến đi này. Vui lòng kiểm tra lại.');
+        }
+
+        // 2. Lấy tất cả các vé (có thể) đã bị chiếm chỗ cho chuyến đi này
+        const occupiedTickets = await Ticket.find({
+            trip: tripId,
+            _id: { $nin: ticketIds }, // Loại trừ các vé mà người dùng đang cố gắng khóa (vì chúng ta sẽ cập nhật chúng)
+            status: { $in: ['locked', 'pending_approval', 'booked'] } // Vé đã bị chiếm chỗ
+        }).lean().session(session); // Dùng lean() để tăng hiệu suất
+
+        // 3. Kiểm tra tính khả dụng của từng ghế được yêu cầu
+        const availableTicketsToLock = [];
+        const unavailableTicketIds = [];
+
+        // Duyệt qua từng ticketId mà người dùng muốn khóa
+        for (const tid of ticketIds) {
+            const ticket = await Ticket.findById(tid).session(session); // Lấy vé cụ thể để kiểm tra trạng thái ban đầu
+
+            if (!ticket) {
+                unavailableTicketIds.push(tid);
+                continue;
+            }
+
+            // Kiểm tra trạng thái hiện tại của vé: nếu không available và không phải là lock hết hạn, thì không hợp lệ
+            if (ticket.status !== 'available' && !(ticket.status === 'locked' && ticket.lockExpires < now)) {
+                unavailableTicketIds.push(tid);
+                continue;
+            }
+
+            // Lấy tất cả các vé đã bị chiếm chỗ TRÊN CÙNG GHẾ NÀY (của chuyến đi này)
+            const existingBookedTicketsForCurrentSeat = occupiedTickets.filter(
+                (ot) => String(ot.seatNumber) === String(ticket.seatNumber)
+            );
+
+            // Sử dụng helper function để kiểm tra chồng chéo
+            const isOverlapped = isSeatSegmentOverlapped(
+                itineraryStopsOrdered,
+                originStopId,
+                destinationStopId,
+                existingBookedTicketsForCurrentSeat
+            );
+
+            if (isOverlapped) {
+                unavailableTicketIds.push(tid);
+            } else {
+                availableTicketsToLock.push(tid);
+            }
+        }
+
+        if (unavailableTicketIds.length > 0) {
+            throw new Error(`Một hoặc nhiều ghế bạn chọn không khả dụng cho chặng này (ID vé: ${unavailableTicketIds.join(', ')}). Vui lòng chọn ghế khác hoặc thử lại.`);
+        }
+
+        // 4. Cập nhật trạng thái của các vé thực sự khả dụng
         const result = await Ticket.updateMany(
-            {
-                _id: { $in: ticketIds },
-                $or: [
-                    { status: 'available' },
-                    { status: 'locked', lockExpires: { $lt: now } }
-                ]
-            },
+            { _id: { $in: availableTicketsToLock } },
             {
                 $set: {
                     status: 'locked',
@@ -73,14 +156,12 @@ exports.lockMultipleSeats = async (req, res) => {
             { session }
         );
 
-        // 2. Kiểm tra xem có khóa đủ số lượng ghế yêu cầu không
-        if (result.matchedCount !== ticketIds.length || result.modifiedCount !== ticketIds.length) {
-            // Nếu không, rollback và báo lỗi
-            throw new Error('Một hoặc nhiều ghế bạn chọn không hợp lệ hoặc đã được người khác giữ. Vui lòng thử lại.');
+        if (result.matchedCount !== availableTicketsToLock.length || result.modifiedCount !== availableTicketsToLock.length) {
+             // Đây là một trường hợp edge-case hiếm gặp nếu logic bên trên đã tốt
+            throw new Error('Có lỗi xảy ra khi khóa ghế. Có thể một số ghế đã thay đổi trạng thái ngay trước khi cập nhật. Vui lòng thử lại.');
         }
 
-        // 3. Lấy thông tin các vé vừa khóa thành công
-        const lockedTickets = await Ticket.find({ _id: { $in: ticketIds }, user: req.user._id }).session(session);
+        const lockedTickets = await Ticket.find({ _id: { $in: availableTicketsToLock }, user: req.user._id }).session(session);
 
         await session.commitTransaction();
         res.status(200).json({
@@ -91,12 +172,9 @@ exports.lockMultipleSeats = async (req, res) => {
 
     } catch (err) {
         await session.abortTransaction();
-        // Phân biệt lỗi do người dùng và lỗi server
-        if (err.message.includes('Một hoặc nhiều ghế')) {
-             res.status(409).json({ success: false, message: err.message }); // 409 Conflict
-        } else {
-             res.status(500).json({ success: false, message: 'Lỗi server khi giữ chỗ', error: err.message });
-        }
+        // Cải thiện thông báo lỗi cho người dùng
+        const userFriendlyMessage = err.message.includes('không khả dụng') || err.message.includes('không hợp lệ') ? err.message : 'Lỗi server khi giữ chỗ. Vui lòng thử lại.';
+        res.status(500).json({ success: false, message: userFriendlyMessage, error: err.message });
     } finally {
         session.endSession();
     }
@@ -105,14 +183,19 @@ exports.lockMultipleSeats = async (req, res) => {
 
 // API: POST /booking/confirm - Xác nhận đặt vé
 exports.confirmBooking = async (req, res) => {
-    // 1. Lấy dữ liệu từ body
-    const { ticketIds, paymentMethod } = req.body;
-    
+    // 1. Lấy dữ liệu từ body: Bổ sung originStopId và destinationStopId
+    const { ticketIds, paymentMethod, originStopId, destinationStopId } = req.body; 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+        // Kiểm tra originStopId và destinationStopId có hợp lệ và là MongoId
+        if (!mongoose.Types.ObjectId.isValid(originStopId) || !mongoose.Types.ObjectId.isValid(destinationStopId)) {
+            throw new Error('ID điểm đi hoặc điểm đến không hợp lệ.');
+        }
+
         // 2. Tìm và xác thực các vé đã được khóa bởi người dùng
+        // Cần populate trip để lấy priceMatrix (để tính giá vé cho chặng)
         const tickets = await Ticket.find({
             _id: { $in: ticketIds },
             user: req.user._id,
@@ -123,42 +206,63 @@ exports.confirmBooking = async (req, res) => {
             throw new Error('Một hoặc nhiều vé không hợp lệ hoặc đã hết hạn giữ chỗ.');
         }
 
-        // 3. Chuẩn bị dữ liệu chung cho đơn hàng
-        const providerId = tickets[0].trip.provider;
-        const totalPrice = tickets.reduce((sum, ticket) => sum + ticket.price, 0);
+        // Lấy thông tin trip đầu tiên từ mảng tickets (vì tất cả vé trong cùng booking phải thuộc cùng một chuyến)
+        const firstTrip = tickets[0].trip;
+        if (!firstTrip) {
+            throw new Error('Không tìm thấy thông tin chuyến đi cho vé đã chọn.');
+        }
+        const providerId = firstTrip.provider;
+
+        // Tính toán giá vé cho MỘT vé trên chặng đã chọn
+        let pricePerTicketForSegment = 0;
+        let segmentPriceFound = false;
+
+        // Tìm giá trong priceMatrix của chuyến đi
+        for (const priceEntry of firstTrip.priceMatrix) {
+            if (String(priceEntry.originStop) === originStopId && String(priceEntry.destinationStop) === destinationStopId) {
+                pricePerTicketForSegment = priceEntry.price;
+                segmentPriceFound = true;
+                break;
+            }
+        }
+        if (!segmentPriceFound) {
+            throw new Error('Không tìm thấy giá cho chặng đã chọn. Vui lòng kiểm tra lại thông tin chuyến đi.');
+        }
+        
+        // Tổng giá cho toàn bộ booking
+        const totalPrice = pricePerTicketForSegment * tickets.length;
 
         const bookingData = {
             user: req.user._id,
             tickets: ticketIds,
-            totalPrice: totalPrice,
+            totalPrice: totalPrice, 
             provider: providerId,
             paymentMethod: paymentMethod,
             approvalStatus: 'pending_approval', 
             paymentStatus: 'pending',
         };
         
-        // 4. Xử lý logic khác nhau cho từng phương thức thanh toán
         let successMessage = '';
         if (paymentMethod === 'cash') {
-            // Với tiền mặt, cho nhà xe 1 giờ để duyệt
             bookingData.bookingExpiresAt = new Date(Date.now() + 60 * 60 * 1000); 
             successMessage = 'Yêu cầu đặt vé đã được gửi, vui lòng chờ nhà xe xác nhận.';
         } else if (paymentMethod === 'bank_transfer') {
-            // Với chuyển khoản, cho người dùng 15 phút để thanh toán
             bookingData.bookingExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
             successMessage = 'Đơn hàng đã được tạo, hãy tiến hành thanh toán để hoàn tất.';
         }
         
-        // 5. Tạo đơn hàng mới
         const [savedBooking] = await Booking.create([bookingData], { session });
 
-        // 6. Cập nhật trạng thái vé
+        // Cập nhật trạng thái vé VÀ LƯU THÔNG TIN CHẶNG
         await Ticket.updateMany(
             { _id: { $in: ticketIds } },
             { 
                 $set: { 
-                    status: 'pending_approval', // Chuyển sang chờ duyệt
-                    booking: savedBooking._id
+                    status: 'pending_approval', 
+                    booking: savedBooking._id,
+                        'segment.originStop': new mongoose.Types.ObjectId(originStopId),      // Gán ObjectId
+                        'segment.destinationStop': new mongoose.Types.ObjectId(destinationStopId), // Gán ObjectId
+                        price: pricePerTicketForSegment // Gán giá vé cho từng vé
                 },
                 $unset: { lockExpires: "" }
             },

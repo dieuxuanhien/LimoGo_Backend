@@ -1,16 +1,22 @@
 const Route = require('../models/route');
-const Trip = require('../models/trip'); // Import để kiểm tra sự phụ thuộc
+const Itinerary = require('../models/itinerary');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
-const { filterObject } = require('../utils/helpers'); 
+/**
+ * Lấy danh sách các tuyến đường (có phân trang).
+ * - Provider: Thấy các tuyến của hệ thống và của riêng mình.
+ * - Admin: Thấy tất cả các tuyến.
+ */
+// src/controllers/routeController.js
 
-// Lấy danh sách route với logic phân quyền
+// ... (các hàm và import khác)
+
 exports.getAllRoutes = catchAsync(async (req, res, next) => {
     let filter = {};
+    const { role } = req.user;
 
-    // GIẢI THÍCH: Provider thấy các tuyến chung của hệ thống VÀ các tuyến riêng của họ.
-    if (req.user.role === 'provider') {
+    if (role === 'provider') {
         filter = {
             $or: [
                 { ownerProvider: null }, // Tuyến của hệ thống
@@ -18,42 +24,56 @@ exports.getAllRoutes = catchAsync(async (req, res, next) => {
             ]
         };
     }
-    // Admin thấy tất cả.
 
-    let routes;
-    if (req.user.role === 'admin') {
-        routes = await Route.find(filter)
-            .select('originStation destinationStation ownerProvider estimatedDurationMin distanceKm');
-    } else {
-        routes = await Route.find(filter)
-            .select('originStation destinationStation ownerProvider estimatedDurationMin distanceKm')
-            .populate({ path: 'originStation', select: 'name city type' })
-            .populate({ path: 'destinationStation', select: 'name city type' })
-            .populate({ path: 'ownerProvider', select: 'name' });
+    // === THÊM CÁC BIẾN PHÂN TRANG VÀO ĐÂY ===
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    // ========================================
+
+    let query = Route.find(filter);
+
+    if (role !== 'admin') {
+        query = query.populate({ path: 'originStation', select: 'name city' })
+                     .populate({ path: 'destinationStation', select: 'name city' })
+                     .populate({ path: 'ownerProvider', select: 'name' });
     }
+
+    const [routes, totalCount] = await Promise.all([
+        query.sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        Route.countDocuments(filter)
+    ]);
+
+    // === ĐẢM BẢO RESPONSE CHỨA PAGINATION DATA ===
+    const totalPages = Math.ceil(totalCount / limit); // Giờ 'limit' đã định nghĩa
+
+    const sanitizedRoutes = routes.map(route => {
+        if (route.ownerProvider && typeof route.ownerProvider === 'string') {
+            return { ...route, ownerProvider: null };
+        }
+        return route;
+    });
 
     res.status(200).json({
         success: true,
-        totalCount: routes.length,
-        data: routes
+        totalCount, // Thêm totalCount
+        totalPages, // Thêm totalPages
+        currentPage: page, // Thêm currentPage
+        data: sanitizedRoutes // TRẢ VỀ DỮ LIỆU ĐÃ LÀM SẠCH
     });
 });
 
-// Lấy chi tiết một route với kiểm tra quyền
+/**
+ * Lấy chi tiết một tuyến đường.
+ */
 exports.getRouteById = catchAsync(async (req, res, next) => {
-    let route;
-    if (req.user.role === 'admin') {
-        route = await Route.findById(req.params.id);
-    } else {
-        route = await Route.findById(req.params.id)
-            .populate('originStation destinationStation');
-    }
+    const route = await Route.findById(req.params.id)
+        .populate('originStation destinationStation');
 
     if (!route) {
         return next(new AppError('Không tìm thấy tuyến đường với ID này', 404));
     }
 
-    // GIẢI THÍCH: Nếu route là của riêng một provider, chỉ provider đó hoặc admin mới được xem.
     if (req.user.role === 'provider' && route.ownerProvider && String(route.ownerProvider) !== String(req.provider._id)) {
         return next(new AppError('Bạn không có quyền xem tuyến đường này.', 403));
     }
@@ -61,18 +81,16 @@ exports.getRouteById = catchAsync(async (req, res, next) => {
     res.status(200).json({ success: true, data: route });
 });
 
-
-// Tạo route với logic phân quyền
+/**
+ * Tạo một tuyến đường mới.
+ */
 exports.createRoute = catchAsync(async (req, res, next) => {
-    const { originStation, destinationStation, distanceKm, estimatedDurationMin, ownerProvider } = req.body;
-    const routeData = { originStation, destinationStation, distanceKm, estimatedDurationMin , ownerProvider };
+    const { originStation, destinationStation, distanceKm, estimatedDurationMin } = req.body;
+    const routeData = { originStation, destinationStation, distanceKm, estimatedDurationMin };
 
-    // GIẢI THÍCH: Custom Validator đã đảm bảo các station hợp lệ.
-    // Controller chỉ việc gán chủ sở hữu cho route mới.
     if (req.user.role === 'provider') {
         routeData.ownerProvider = req.provider._id;
     }
-    // Nếu là Admin, ownerProvider sẽ là null -> tuyến đường hệ thống
 
     const newRoute = await Route.create(routeData);
     res.status(201).json({
@@ -82,38 +100,63 @@ exports.createRoute = catchAsync(async (req, res, next) => {
     });
 });
 
-// Cập nhật route với kiểm tra quyền
+/**
+ * Cập nhật một tuyến đường.
+ * Chỉ cho phép cập nhật các thông tin phụ.
+ */
 exports.updateRoute = catchAsync(async (req, res, next) => {
-    // Middleware checkRouteOwnership đã tìm, xác thực quyền,
-    // và gắn tài nguyên vào req.route.
-    const allowedFields = [ 'originStation', 'destinationStation', 'distanceKm', 'estimatedDurationMin', 'ownerProvider'];
+    const allowedUpdates = ['distanceKm', 'estimatedDurationMin'];
+    const updateData = {};
 
-    const filterBody = filterObject(req.body, ...allowedFields);
+    Object.keys(req.body).forEach(key => {
+        if (allowedUpdates.includes(key)) {
+            updateData[key] = req.body[key];
+        }
+    });
 
-    // Provider không được phép thay đổi chủ sở hữu của route
-    if (req.user.role === 'provider' && req.body.ownerProvider) {
-        return next(new AppError('Bạn không có quyền thay đổi chủ sở hữu của tuyến đường.', 400));
+    if (Object.keys(updateData).length === 0) {
+        return next(new AppError('Không có dữ liệu hợp lệ để cập nhật.', 400));
     }
 
-    Object.assign(req.route, filterBody);
-    await req.route.save({ validateModifiedOnly: true });
+    let query;
+    if (req.user.role === 'provider') {
+        query = { _id: req.params.id, ownerProvider: req.provider._id };
+    } else {
+        query = { _id: req.params.id };
+    }
 
-    res.status(200).json({ success: true, data: req.route });
+    const updatedRoute = await Route.findOneAndUpdate(query, updateData, {
+        new: true,
+        runValidators: true
+    });
+
+    if (!updatedRoute) {
+        return next(new AppError('Không tìm thấy tuyến đường hoặc bạn không có quyền cập nhật.', 404));
+    }
+
+    res.status(200).json({ success: true, data: updatedRoute });
 });
 
-
-// Xóa route với kiểm tra quyền và sự phụ thuộc
+/**
+ * Xóa một tuyến đường.
+ */
 exports.deleteRoute = catchAsync(async (req, res, next) => {
-    // Middleware đã xác thực quyền, req.route đã có sẵn.
-    const routeId = req.route._id;
+    const routeId = req.params.id;
+    const routeToDelete = await Route.findById(routeId);
 
-    // Kiểm tra sự phụ thuộc
-    const activeTrip = await Trip.findOne({ route: routeId });
-    if (activeTrip) {
-        return next(new AppError('Không thể xóa tuyến đường này vì nó đang được sử dụng trong một chuyến đi.', 400));
+    if (!routeToDelete) {
+        return next(new AppError('Không tìm thấy tuyến đường với ID này.', 404));
+    }
+
+    if (req.user.role === 'provider' && String(routeToDelete.ownerProvider) !== String(req.provider._id)) {
+        return next(new AppError('Bạn không có quyền xóa tuyến đường này.', 403));
+    }
+
+    const activeItinerary = await Itinerary.findOne({ baseRoute: routeId });
+    if (activeItinerary) {
+        return next(new AppError('Không thể xóa tuyến đường này vì đang có Hành trình sử dụng nó.', 400));
     }
 
     await Route.findByIdAndDelete(routeId);
-
-    res.status(200).json({ success: true, message: 'Xóa tuyến đường thành công.' });
+    res.status(204).json({ success: true, data: null });
 });
